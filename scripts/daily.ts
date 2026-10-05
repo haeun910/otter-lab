@@ -6,7 +6,7 @@ import { fromRows, toRows } from "../src/lab/cloud/mapping";
 import { selectRows, upsertRows, type Cloud } from "../src/lab/cloud/rest";
 import { BUILDINGS } from "../src/lab/data/buildings";
 import type { Draft, Meeting, NewsItem } from "../src/lab/data/demo";
-import { groqReady, writeWithGroq } from "../src/lab/gen/groq";
+import { groqNotes, groqReady, writeWithGroq } from "../src/lab/gen/groq";
 import { DEFAULT_BRAND, DEFAULT_PROMPTS, type BrandVoice } from "../src/lab/gen/prompt";
 import { templateBlog, templateDeck } from "../src/lab/gen/template";
 import { FEEDS } from "../src/lab/news/feeds";
@@ -20,6 +20,7 @@ export interface DailyEnv {
   telegramToken?: string;
   telegramChat?: string;
   discordWebhook?: string;
+  discordMention?: string; // 디스코드 사용자 ID (넣으면 @멘션으로 휴대폰 알림이 확실히 와요)
   labUrl?: string;
   force?: boolean;
 }
@@ -76,6 +77,8 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
     made.push({ id: `d${now.toString(36)}${i}`, type: job.type, createdAt: now + i, status: "검토 대기", sources: job.items.map((n) => n.link), ...out });
   }
   if (jobs.length && !groqReady()) problems.push("GROQ_API_KEY가 없어서 뼈대 초안으로 썼어요");
+  problems.push(...groqNotes);
+  groqNotes.clear();
   if (news.failed.length) problems.push(`이번에 못 받은 매체: ${news.failed.join(", ")}`);
 
   // 4. 회의록
@@ -113,7 +116,7 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
   // 알림은 한쪽이 실패해도 다른 쪽은 보내요
   const fails: string[] = [];
   if (env.telegramToken && env.telegramChat) await sendTelegram(env.telegramToken, env.telegramChat, message).catch((e) => fails.push(String(e?.message ?? e)));
-  if (env.discordWebhook) await sendDiscord(env.discordWebhook, { title, lines: [...lines, ...(env.labUrl ? [env.labUrl] : [])], url: env.labUrl }).catch((e) => fails.push(String(e?.message ?? e)));
+  if (env.discordWebhook) await sendDiscord(env.discordWebhook, { title, lines: [...lines, ...(env.labUrl ? [env.labUrl] : [])], url: env.labUrl, mention: env.discordMention }).catch((e) => fails.push(String(e?.message ?? e)));
   if (fails.length) throw new Error(`회의는 끝났지만 알림을 못 보냈어요: ${fails.join(" / ")}`);
   return { ran: true, reason: "회의를 했어요", drafts: made, message };
 }
@@ -130,6 +133,7 @@ async function main() {
     telegramToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChat: process.env.TELEGRAM_CHAT_ID,
     discordWebhook: process.env.DISCORD_WEBHOOK_URL,
+    discordMention: process.env.DISCORD_MENTION_USER_ID,
     labUrl: process.env.LAB_URL,
     force: process.env.FORCE === "1" || process.env.FORCE === "true",
   });

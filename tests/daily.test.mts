@@ -1,6 +1,6 @@
 // 가짜 Supabase·RSS·Groq·텔레그램으로 자동 회의를 처음부터 끝까지 돌려 봐요
 import assert from "node:assert/strict";
-import { db, sent, discord, fail, install, feedTime } from "./fake.ts";
+import { db, sent, discord, fail, install, feedTime, groqModels } from "./fake.ts";
 import { runDaily } from "../scripts/daily.ts";
 import { diffRows, fromRows, pickCloud, toRows } from "../src/lab/cloud/mapping";
 import { inList } from "../src/lab/cloud/rest";
@@ -78,8 +78,30 @@ assert.match(discord[0].title, /\[오터랩\] 10\/07 오후 12:00 회의 끝/);
 assert.match(discord[0].description, /검토 대기 \d+개/);
 assert.equal(discord[0].url, "https://lab.example");
 fail.telegram = false;
-await runDaily({ supabaseUrl: env.supabaseUrl, serviceKey: env.serviceKey, discordWebhook: "https://discord.com/api/webhooks/1/abc", force: true }, KST(13, 0, 7));
+await runDaily({ supabaseUrl: env.supabaseUrl, serviceKey: env.serviceKey, discordWebhook: "https://discord.com/api/webhooks/1/abc", discordMention: "12345", force: true }, KST(13, 0, 7));
 assert.equal(discord.length, 2, "디스코드만 써도 돼요");
+assert.equal((discord[1] as any).content, "<@12345>");
+assert.deepEqual((discord[1] as any).allowed.users, ["12345"]);
+
+// 모델 이름: 앞의 openai/를 빠뜨려도 고쳐 쓰고, 없는 모델이면 기본 모델로 바꿔 쓰고 알려요
+const { fixModelName } = await import("../src/lab/gen/groq.ts");
+assert.equal(fixModelName("gpt-oss-120b"), "openai/gpt-oss-120b");
+assert.equal(fixModelName(" qwen3.6-27b"), "qwen/qwen3.6-27b");
+assert.equal(fixModelName("openai/gpt-oss-20b"), "openai/gpt-oss-20b");
+feedTime.t = KST(9, 50, 8);
+feedTime.tag = "-d8";
+process.env.GROQ_MODEL = "gpt-oss-120b";
+groqModels.length = 0;
+r = await runDaily({ ...env, force: true }, KST(10, 7, 8));
+assert.ok(groqModels.length > 0 && groqModels.every((m) => m === "openai/gpt-oss-120b"), groqModels.join());
+assert.ok(r.drafts.every((d) => d.engine === "groq"));
+process.env.GROQ_MODEL = "openai/llama-retired";
+feedTime.t = KST(9, 50, 9);
+feedTime.tag = "-d9";
+r = await runDaily({ ...env, force: true }, KST(10, 7, 9));
+assert.ok(r.drafts.length && r.drafts.every((d) => d.engine === "groq"), "기본 모델로 바꿔서 결국 Groq가 써요");
+assert.match(r.message!, /GROQ_MODEL 'openai\/llama-retired'을 Groq에서 찾지 못해서 기본 모델/);
+delete process.env.GROQ_MODEL;
 
 // 매핑·비교
 const s0 = { library: NEWS.slice(0, 3), drafts: SEED_DRAFTS, posts: SEED_POSTS, meetings: [], brand: { a: 1 }, staff: {}, schedule: { meetingAt: "10:00" }, inbox: ["x"], lastFetch: null };

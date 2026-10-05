@@ -37,6 +37,14 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
 
 > 웹후크 주소를 아는 사람은 누구나 그 채널에 글을 올릴 수 있어요. GitHub 비밀값에만 넣어 주세요.
 
+**휴대폰 알림이 안 울리면** (메시지는 채널에 와 있는데 알림만 없을 때)
+- 디스코드는 컴퓨터에서 디스코드를 켜 두고 있으면 휴대폰 알림을 보내지 않아요.
+- 서버 아이콘 길게 누르기(또는 오른쪽 클릭) → **알림 설정** → **모든 메시지**로 바꿔요.
+- 그래도 안 울리면 **@멘션**을 켜세요. 멘션은 알림 설정과 상관없이 울려요:
+  1. 디스코드 **사용자 설정 → 고급 → 개발자 모드** 켜기
+  2. 내 프로필(이름) 오른쪽 클릭 또는 길게 누르기 → **사용자 ID 복사** (숫자 18~19자리)
+  3. GitHub **Variables**에 `DISCORD_MENTION_USER_ID` = 그 숫자
+
 ### 텔레그램
 
 1. 텔레그램에서 **@BotFather**를 찾아 `/newbot`을 보내요.
@@ -93,7 +101,8 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
    | `NEXT_PUBLIC_SUPABASE_URL` | ① 프로젝트 주소 |
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ② publishable 키 (예전 프로젝트면 이름을 `NEXT_PUBLIC_SUPABASE_ANON_KEY`로 하고 anon 키) |
    | `GROQ_API_KEY` | Groq 키 |
-   | `GROQ_MODEL` | (선택) 모델 이름 |
+   | `GROQ_MODEL` | (선택) 모델 이름. 비워 두면 `openai/gpt-oss-120b`. 넣을 때는 `openai/`, `qwen/` 같은 앞부분까지 통째로 |
+| `DISCORD_MENTION_USER_ID` | (선택) 디스코드 내 사용자 ID. 넣으면 알림에 @멘션이 붙어 휴대폰이 확실히 울려요 |
 
 3. **Deploy**. 끝나면 `https://otter-lab-xxxx.vercel.app` 같은 주소가 나와요. 이 주소를 Supabase의 Site URL·Redirect URLs에 넣어 주세요 (3-5단계).
 4. Vercel은 저장소의 **기본 브랜치**를 실제 서비스로 올려요. 5단계 맨 앞의 "기본 브랜치 바꾸기"를 먼저 하거나, Vercel **Settings → Git → Production Branch**를 `main`으로 바꾼 뒤 **Deployments → ⋯ → Redeploy** 해 주세요.
@@ -126,7 +135,8 @@ GitHub는 저장소의 **기본 브랜치**에 있는 워크플로만 Actions �
 | 이름 | 값 |
 |---|---|
 | `LAB_URL` | Vercel 주소 (알림에 링크로 붙어요) |
-| `GROQ_MODEL` | (선택) 모델 이름 |
+| `GROQ_MODEL` | (선택) 모델 이름. 비워 두면 `openai/gpt-oss-120b`. 넣을 때는 `openai/`, `qwen/` 같은 앞부분까지 통째로 |
+| `DISCORD_MENTION_USER_ID` | (선택) 디스코드 내 사용자 ID. 넣으면 알림에 @멘션이 붙어 휴대폰이 확실히 울려요 |
 
 **바로 시험해 보기:** 저장소 위쪽 **Actions** 탭 (처음이면 "I understand my workflows, go ahead and enable them") → 왼쪽 **daily-meeting** → 오른쪽 **Run workflow ▾** → Branch `main`, "회의 시간과 상관없이 지금 회의하기" 체크 → 초록 **Run workflow**.
 실패(빨간 X)하면 그 실행 → **meeting** → **Run npm run daily**를 펼쳐 마지막 줄을 보면 이유가 적혀 있어요.

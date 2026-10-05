@@ -5,9 +5,10 @@ export const discord: { title: string; description: string; url?: string }[] = [
 export const fail = { telegram: false };
 export const calls: string[] = [];
 export let groqCalls = 0;
-export const feedTime = { t: Date.now() };
+export const groqModels: string[] = [];
+export const feedTime = { t: Date.now(), tag: "" }; // tag를 바꾸면 새 소식이 와요
 
-const rss = (prefix: string, n: number) => `<rss><channel>${Array.from({ length: n }, (_, i) => `<item><title>${prefix} AI 소식 ${i}</title><link>https://ex.com/${prefix}/${i}?a=1,2</link><pubDate>${new Date(feedTime.t - i * 3600_000).toUTCString()}</pubDate><description>${prefix}의 ${i}번째 에이전트 소식이에요. 두 번째 문장이에요.</description></item>`).join("")}</channel></rss>`;
+const rss = (prefix: string, n: number) => `<rss><channel>${Array.from({ length: n }, (_, i) => `<item><title>${prefix} AI 소식 ${i}</title><link>https://ex.com/${prefix}${feedTime.tag}/${i}?a=1,2</link><pubDate>${new Date(feedTime.t - i * 3600_000).toUTCString()}</pubDate><description>${prefix}의 ${i}번째 에이전트 소식이에요. 두 번째 문장이에요.</description></item>`).join("")}</channel></rss>`;
 
 export function install() {
   globalThis.fetch = (async (input: string | URL, init: RequestInit = {}) => {
@@ -46,6 +47,9 @@ export function install() {
     if (url.includes("api.groq.com")) {
       groqCalls++;
       const body = JSON.parse(String(init.body));
+      groqModels.push(body.model);
+      if (!["openai/gpt-oss-120b", "qwen/qwen3.6-27b"].includes(body.model))
+        return json({ error: { message: `The model \`${body.model}\` does not exist or you do not have access to it.`, code: "model_not_found" } }, 404);
       const cards = body.messages[0].content.includes("카드뉴스");
       const content = cards
         ? JSON.stringify({ cards: [{ kind: "cover", title: "Groq 표지", body: "부제" }, { kind: "body", tag: "t", title: "본문", body: "줄" }, { kind: "outro", title: "정리", body: "- a" }], caption: "캡션", hashtags: ["AI"] })
@@ -54,7 +58,8 @@ export function install() {
     }
     if (url.startsWith("https://discord.com/api/webhooks/")) {
       if (!url.includes("wait=true")) return json({ message: "need wait" }, 400);
-      discord.push(JSON.parse(String(init.body)).embeds[0]);
+      const msg = JSON.parse(String(init.body));
+      discord.push({ ...msg.embeds[0], content: msg.content, allowed: msg.allowed_mentions });
       return json({ id: "1" });
     }
     if (url.includes("api.telegram.org")) {
