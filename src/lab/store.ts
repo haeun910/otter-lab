@@ -1,6 +1,9 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { BUILDINGS, type RoomObject } from "./data/buildings";
-import { DECKS, type Card, type Deck } from "./data/demo";
+import { NEWS, SEED_DRAFTS, SEED_POSTS, type Blog, type Card, type Draft, type NewsItem, type Post } from "./data/demo";
+import { DEFAULT_PROMPTS } from "./gen/prompt";
+import { mergeNews } from "./news/rss";
 
 export type SceneId = "outside" | string; // 건물 id
 
@@ -9,7 +12,17 @@ export type Pending = { type: "enter"; id: string } | { type: "use"; object: Roo
 export interface StaffEdit {
   title: string;
   name: string;
+  prompt?: string; // 글 쓰는 연구원(모모·테오)의 역할 지시문
 }
+
+export interface Brand {
+  handle: string;
+  series: string;
+  tone: string;
+  deepTone: string;
+}
+
+const LIBRARY_MAX = 3000;
 
 interface LabState {
   scene: SceneId;
@@ -25,13 +38,20 @@ interface LabState {
   nearDoor: string | null; // 문 앞에 서 있으면 그 건물 id
   marker: [number, number] | null; // 목적지 표시
   hover: string | null; // 마우스를 올린 것
+  busy: "news" | "draft" | "print" | null; // 시간이 걸리는 일
   // 3D 장면이 등록해 두는 동작 (라벨을 눌러도 똑같이 움직이게)
   actions: { enter?: (id: string) => void; use?: (o: RoomObject) => void; exit?: () => void; talk?: (key: string) => void };
-  staff: Record<string, StaffEdit>;
-  brand: { handle: string; series: string; tone: string; deepTone: string };
-  decks: Deck[];
-  basket: string[]; // 담은 소식 링크
 
+  // ---- 저장되는 연구소 데이터 ----
+  staff: Record<string, StaffEdit>;
+  brand: Brand;
+  library: NewsItem[]; // 지금까지 받은 모든 소식 (최신순)
+  inbox: string[]; // 가장 최근에 받은 소식 링크 (수신 모니터)
+  lastFetch: number | null;
+  basket: string[]; // 담은 소식 링크
+  drafts: Draft[]; // 최신순
+  current: string | null; // 공방·서재·선착장에서 보고 있는 초안
+  posts: Post[];
 
   go: (scene: SceneId, spawnAt?: string | null) => void;
   setPending: (p: Pending) => void;
@@ -44,98 +64,193 @@ interface LabState {
   setNearDoor: (id: string | null) => void;
   setMarker: (m: [number, number] | null) => void;
   setHover: (h: string | null) => void;
+  setBusy: (b: LabState["busy"]) => void;
   setActions: (a: LabState["actions"]) => void;
-  editStaff: (id: string, e: StaffEdit) => void;
-  setBrand: (b: LabState["brand"]) => void;
-  editCard: (deckId: string, index: number, patch: Partial<Card>) => void;
-  editCaption: (deckId: string, caption: string) => void;
-  toggleBasket: (link: string) => void;
   travel: (scene: SceneId) => void;
+
+  editStaff: (id: string, e: StaffEdit) => void;
+  setBrand: (b: Brand) => void;
+  receiveNews: (items: NewsItem[], fetchedAt: number) => void;
+  toggleBasket: (link: string) => void;
+  clearBasket: () => void;
+  addDraft: (d: Draft) => void;
+  removeDraft: (id: string) => void;
+  setCurrent: (id: string) => void;
+  editCard: (draftId: string, index: number, patch: Partial<Card>) => void;
+  addCard: (draftId: string, after: number) => void;
+  removeCard: (draftId: string, index: number) => void;
+  moveCard: (draftId: string, index: number, dir: -1 | 1) => void;
+  editDeck: (draftId: string, patch: { caption?: string; hashtags?: string[] }) => void;
+  editBlog: (draftId: string, patch: Partial<Blog>) => void;
+  publish: (draftId: string) => void;
+  editPost: (id: string, patch: Partial<Pick<Post, "likes" | "saves" | "reach">>) => void;
+  importData: (data: Partial<SavedData>) => void;
+  resetData: () => void;
 }
 
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
-let speechTimer: ReturnType<typeof setTimeout> | undefined;
+const defaultStaff = (): Record<string, StaffEdit> =>
+  Object.fromEntries(
+    BUILDINGS.filter((b) => b.staff).map((b) => [b.id, { title: b.staff!.title, name: b.staff!.name, ...(DEFAULT_PROMPTS[b.id] ? { prompt: DEFAULT_PROMPTS[b.id] } : {}) }]),
+  );
 
-export const useLab = create<LabState>((set, get) => ({
-  scene: "outside",
-  fading: false,
-  pending: null,
-  focus: null,
-  panelOpen: false,
-  spawnAt: null,
-  hint: true,
-  toast: "",
-  mapOpen: false,
-  speech: null,
-  nearDoor: null,
-  marker: null,
-  hover: null,
-  actions: {},
-  staff: Object.fromEntries(BUILDINGS.filter((b) => b.staff).map((b) => [b.id, { title: b.staff!.title, name: b.staff!.name }])),
+const initialData = () => ({
+  staff: defaultStaff(),
   brand: {
     handle: "@otterlab.ai",
     series: "오터랩 데일리",
     tone: "친근한 존댓말, 어려운 용어는 한 번 풀어서",
     deepTone: "차분하게, 배경과 의미까지 짚어서",
   },
-  decks: DECKS,
-  basket: [],
+  library: NEWS,
+  inbox: NEWS.map((n) => n.link),
+  lastFetch: null as number | null,
+  basket: [] as string[],
+  drafts: SEED_DRAFTS,
+  current: SEED_DRAFTS[0]?.id ?? null,
+  posts: SEED_POSTS,
+});
 
-  go: (scene, spawnAt = null) => {
-    if (get().fading) return;
-    set({ fading: true, pending: null, focus: null, panelOpen: false, mapOpen: false, marker: null, nearDoor: null });
-    live.path = [];
-    // 화면이 덮인 뒤 장면을 바꾸고 다시 걷어내요
-    setTimeout(() => set({ scene, spawnAt }), 380);
-    setTimeout(() => set({ fading: false }), 760);
-  },
-  setPending: (pending) => set({ pending }),
-  openFocus: (o) => {
-    set({ focus: o, pending: null });
-    setTimeout(() => {
-      if (get().focus?.id === o.id) set({ panelOpen: true });
-    }, 650);
-  },
-  closeFocus: () => set({ focus: null, panelOpen: false }),
-  say: (msg) => {
-    clearTimeout(toastTimer);
-    set({ toast: msg });
-    toastTimer = setTimeout(() => set({ toast: "" }), 2600);
-  },
-  setMapOpen: (mapOpen) => set({ mapOpen }),
-  setSpeech: (speech) => {
-    clearTimeout(speechTimer);
-    set({ speech });
-    if (speech) speechTimer = setTimeout(() => set({ speech: null }), 4200);
-  },
-  dismissHint: () => set({ hint: false }),
-  setNearDoor: (nearDoor) => {
-    if (get().nearDoor !== nearDoor) set({ nearDoor });
-  },
-  setMarker: (marker) => set({ marker }),
-  setActions: (actions) => set({ actions }),
-  setHover: (hover) => {
-    if (get().hover !== hover) set({ hover });
-    document.body.style.cursor = hover ? "pointer" : "";
-  },
-  editStaff: (id, e) => set((s) => ({ staff: { ...s.staff, [id]: e } })),
-  setBrand: (brand) => set({ brand }),
-  editCard: (deckId, index, patch) =>
-    set((s) => ({
-      decks: s.decks.map((d) => (d.id === deckId ? { ...d, cards: d.cards.map((c, i) => (i === index ? { ...c, ...patch } : c)) } : d)),
-    })),
-  editCaption: (deckId, caption) => set((s) => ({ decks: s.decks.map((d) => (d.id === deckId ? { ...d, caption } : d)) })),
-  toggleBasket: (link) =>
-    set((s) => ({ basket: s.basket.includes(link) ? s.basket.filter((l) => l !== link) : [...s.basket, link] })),
-  travel: (scene) => {
-    const cur = get().scene;
-    if (scene === cur) {
-      set({ mapOpen: false });
-      return;
-    }
-    get().go(scene, scene === "outside" ? cur : null);
-  },
-}));
+export type SavedData = ReturnType<typeof initialData>;
+const SAVED_KEYS = Object.keys(initialData()) as (keyof SavedData)[];
+
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let speechTimer: ReturnType<typeof setTimeout> | undefined;
+
+export const useLab = create<LabState>()(
+  persist(
+    (set, get) => {
+      const patchDraft = (id: string, fn: (d: Draft) => Draft) => set((s) => ({ drafts: s.drafts.map((d) => (d.id === id ? fn(d) : d)) }));
+      const patchCards = (id: string, fn: (cards: Card[]) => Card[]) => patchDraft(id, (d) => ({ ...d, deck: { ...d.deck, cards: fn(d.deck.cards) } }));
+      return {
+        scene: "outside",
+        fading: false,
+        pending: null,
+        focus: null,
+        panelOpen: false,
+        spawnAt: null,
+        hint: true,
+        toast: "",
+        mapOpen: false,
+        speech: null,
+        nearDoor: null,
+        marker: null,
+        hover: null,
+        busy: null,
+        actions: {},
+        ...initialData(),
+
+        go: (scene, spawnAt = null) => {
+          if (get().fading) return;
+          set({ fading: true, pending: null, focus: null, panelOpen: false, mapOpen: false, marker: null, nearDoor: null });
+          live.path = [];
+          // 화면이 덮인 뒤 장면을 바꾸고 다시 걷어내요
+          setTimeout(() => set({ scene, spawnAt }), 380);
+          setTimeout(() => set({ fading: false }), 760);
+        },
+        setPending: (pending) => set({ pending }),
+        openFocus: (o) => {
+          set({ focus: o, pending: null });
+          setTimeout(() => {
+            if (get().focus?.id === o.id) set({ panelOpen: true });
+          }, 650);
+        },
+        closeFocus: () => set({ focus: null, panelOpen: false }),
+        say: (msg) => {
+          clearTimeout(toastTimer);
+          set({ toast: msg });
+          toastTimer = setTimeout(() => set({ toast: "" }), Math.max(2600, msg.length * 70));
+        },
+        setMapOpen: (mapOpen) => set({ mapOpen }),
+        setSpeech: (speech) => {
+          clearTimeout(speechTimer);
+          set({ speech });
+          if (speech) speechTimer = setTimeout(() => set({ speech: null }), 4200);
+        },
+        dismissHint: () => set({ hint: false }),
+        setNearDoor: (nearDoor) => {
+          if (get().nearDoor !== nearDoor) set({ nearDoor });
+        },
+        setMarker: (marker) => set({ marker }),
+        setActions: (actions) => set({ actions }),
+        setHover: (hover) => {
+          if (get().hover !== hover) set({ hover });
+          document.body.style.cursor = hover ? "pointer" : "";
+        },
+        setBusy: (busy) => set({ busy }),
+        travel: (scene) => {
+          const cur = get().scene;
+          if (scene === cur) {
+            set({ mapOpen: false });
+            return;
+          }
+          get().go(scene, scene === "outside" ? cur : null);
+        },
+
+        editStaff: (id, e) => set((s) => ({ staff: { ...s.staff, [id]: e } })),
+        setBrand: (brand) => set({ brand }),
+        receiveNews: (items, fetchedAt) =>
+          set((s) => ({
+            library: mergeNews(items, s.library).slice(0, LIBRARY_MAX),
+            inbox: items.length ? items.map((n) => n.link) : s.inbox,
+            lastFetch: fetchedAt,
+          })),
+        toggleBasket: (link) => set((s) => ({ basket: s.basket.includes(link) ? s.basket.filter((l) => l !== link) : [...s.basket, link] })),
+        clearBasket: () => set({ basket: [] }),
+        addDraft: (d) => set((s) => ({ drafts: [d, ...s.drafts], current: d.id })),
+        removeDraft: (id) =>
+          set((s) => {
+            const drafts = s.drafts.filter((d) => d.id !== id);
+            return { drafts, current: s.current === id ? drafts[0]?.id ?? null : s.current };
+          }),
+        setCurrent: (current) => set({ current }),
+        editCard: (id, index, patch) => patchCards(id, (cards) => cards.map((c, i) => (i === index ? { ...c, ...patch } : c))),
+        addCard: (id, after) => patchCards(id, (cards) => [...cards.slice(0, after + 1), { kind: "body", tag: "", title: "새 카드", body: "" }, ...cards.slice(after + 1)]),
+        removeCard: (id, index) => patchCards(id, (cards) => (cards.length > 2 ? cards.filter((_, i) => i !== index) : cards)),
+        moveCard: (id, index, dir) =>
+          patchCards(id, (cards) => {
+            const j = index + dir;
+            if (j < 0 || j >= cards.length) return cards;
+            const next = [...cards];
+            [next[index], next[j]] = [next[j], next[index]];
+            return next;
+          }),
+        editDeck: (id, patch) => patchDraft(id, (d) => ({ ...d, deck: { ...d.deck, ...patch } })),
+        editBlog: (id, patch) => patchDraft(id, (d) => ({ ...d, blog: { ...d.blog, ...patch } })),
+        publish: (id) => {
+          const d = get().drafts.find((x) => x.id === id);
+          if (!d || d.status === "게시함") return;
+          const postedAt = Date.now();
+          patchDraft(id, (x) => ({ ...x, status: "게시함", postedAt }));
+          set((s) => ({
+            posts: [...s.posts, { id: `post-${id}`, draftId: id, postedAt, title: d.deck.cards[0]?.title ?? d.blog.title, type: d.type, likes: 0, saves: 0, reach: 0 }],
+          }));
+        },
+        editPost: (id, patch) => set((s) => ({ posts: s.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+        importData: (data) => set(Object.fromEntries(SAVED_KEYS.filter((k) => k in data).map((k) => [k, data[k]]))),
+        resetData: () => set(initialData()),
+      };
+    },
+    {
+      name: "otter-lab",
+      version: 1,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (s) => Object.fromEntries(SAVED_KEYS.map((k) => [k, s[k]])) as SavedData,
+      // 새로 생긴 기본값(예: 지시문)은 저장된 값 아래에 깔아 둬요
+      merge: (saved, cur) => {
+        const s = (saved ?? {}) as Partial<SavedData>;
+        return { ...cur, ...s, staff: { ...cur.staff, ...Object.fromEntries(Object.entries(s.staff ?? {}).map(([k, v]) => [k, { ...cur.staff[k], ...v }])) } };
+      },
+    },
+  ),
+);
+
+/** 지금 보고 있는 초안 (없으면 검토 대기 중 가장 최근 것) */
+export function pickCurrent(drafts: Draft[], current: string | null): Draft | undefined {
+  return drafts.find((d) => d.id === current) ?? drafts.find((d) => d.status === "검토 대기") ?? drafts[0];
+}
+
+/** 초안 이름: 표지 카드 제목 */
+export const draftLabel = (d: Draft) => d.deck.cards[0]?.title || d.blog.title || "제목 없는 초안";
 
 // 매 프레임 바뀌는 값은 리렌더 없이 공유해요
 export const live = {

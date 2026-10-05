@@ -1,6 +1,7 @@
-// 1단계 확인용 예시 데이터.
+// 처음 열었을 때 보이는 예시 데이터.
 // 소식 목록은 10월 5일에 실제 RSS에서 모은 기사 제목·요약이고,
-// 카드뉴스·블로그 글은 그 요약만 바탕으로 손으로 쓴 예시예요. (실제 글쓰기는 3단계에서 Groq가 맡아요)
+// 카드뉴스·블로그 글은 그 요약만 바탕으로 손으로 쓴 예시예요.
+// 새 소식 받기·초안 만들기를 하면 진짜 데이터가 이 위에 쌓여요.
 import snapshot from "./news-snapshot.json";
 
 export interface NewsItem {
@@ -22,15 +23,52 @@ export interface Card {
   body: string;
 }
 
+export type DraftType = "묶음" | "심층";
+
 export interface Deck {
-  id: string;
-  type: "묶음" | "심층";
   cards: Card[];
   caption: string;
   hashtags: string[];
 }
 
-export const DECKS: Deck[] = [
+export interface Blog {
+  title: string;
+  intro: string;
+  sections: { heading: string; body: string }[];
+  outro: string;
+  tags: string[];
+}
+
+/** 초안 한 건 = 카드뉴스 + 블로그 글 */
+export interface Draft {
+  id: string;
+  type: DraftType;
+  createdAt: number;
+  status: "검토 대기" | "게시함";
+  engine: "sample" | "template" | "groq"; // 예시 / AI 없이 만든 뼈대 / Groq가 쓴 글
+  sources: string[]; // 바탕이 된 소식 링크
+  deck: Deck;
+  blog: Blog;
+  postedAt?: number;
+}
+
+/** 성과 게시판 한 줄 (게시한 카드뉴스의 반응) */
+export interface Post {
+  id: string;
+  draftId?: string;
+  postedAt: number;
+  title: string;
+  type: DraftType;
+  likes: number;
+  saves: number;
+  reach: number;
+  sample?: boolean;
+}
+
+// 한국 시간 오전 10시
+const kst10 = (m: number, d: number) => Date.UTC(2026, m - 1, d, 1);
+
+const SAMPLE_DECKS: (Deck & { id: string; type: DraftType })[] = [
   {
     id: "bundle",
     type: "묶음",
@@ -107,20 +145,9 @@ export const DECKS: Deck[] = [
   },
 ];
 
-export interface Blog {
-  id: string;
-  type: "묶음" | "심층";
-  title: string;
-  intro: string;
-  sections: { heading: string; body: string }[];
-  outro: string;
-  tags: string[];
-}
-
-export const BLOGS: Blog[] = [
+const SAMPLE_BLOGS: (Blog & { id: string })[] = [
   {
     id: "bundle",
-    type: "묶음",
     title: "AI 뉴스 정리 10월 5일, 논문 쓰는 AI부터 뇌 데이터 모델까지",
     intro: "오늘도 오터랩 수달들이 강가에서 건져 올린 AI 소식을 정리했어요. 바쁜 분들을 위해 다섯 가지만 골랐어요.",
     sections: [
@@ -138,7 +165,6 @@ export const BLOGS: Blog[] = [
   },
   {
     id: "deep",
-    type: "심층",
     title: "GPT-6 아스트라, 217년 된 나폴레옹 암호를 6시간 만에 해독",
     intro: "217년 동안 풀리지 않던 나폴레옹 시대 군사 암호를 AI가 6시간 만에 풀었다는 소식이에요. 어떻게 된 일인지 정리해 봤어요.",
     sections: [
@@ -156,19 +182,19 @@ export const BLOGS: Blog[] = [
   },
 ];
 
-// 성과 게시판 예시 수치 (실제 수치는 5단계에서 인스타그램에서 가져와요)
-export const STATS = [
-  { date: "9/29", title: "이번 주 AI 소식 5가지", type: "묶음", likes: 42, saves: 18, reach: 640 },
-  { date: "9/30", title: "에이전트가 뭐길래", type: "심층", likes: 61, saves: 47, reach: 910 },
-  { date: "10/1", title: "오늘의 AI 소식 5가지", type: "묶음", likes: 38, saves: 15, reach: 580 },
-  { date: "10/2", title: "무료 AI 도구 비교", type: "심층", likes: 77, saves: 66, reach: 1240 },
-  { date: "10/3", title: "오늘의 AI 소식 5가지", type: "묶음", likes: 45, saves: 20, reach: 700 },
-  { date: "10/4", title: "AI 반도체 한눈에", type: "심층", likes: 53, saves: 39, reach: 860 },
-];
+export const SEED_DRAFTS: Draft[] = SAMPLE_DECKS.map(({ id, type, ...deck }) => {
+  const { id: _b, ...blog } = SAMPLE_BLOGS.find((b) => b.id === id)!;
+  return { id: `sample-${id}`, type, createdAt: kst10(10, 5), status: "검토 대기", engine: "sample", sources: [], deck, blog };
+});
 
-export const DRAFTS = [
-  { id: "d1", date: "10월 5일", label: "오늘의 AI 소식 5가지", kinds: ["카드 7장", "블로그"], status: "검토 대기" },
-  { id: "d2", date: "10월 5일", label: "217년 된 암호를 6시간 만에", kinds: ["카드 5장", "블로그"], status: "검토 대기" },
-  { id: "d3", date: "10월 4일", label: "AI 반도체 한눈에", kinds: ["카드 6장", "블로그"], status: "게시함" },
-  { id: "d4", date: "10월 4일", label: "오늘의 AI 소식 5가지", kinds: ["카드 7장"], status: "게시함" },
-];
+// 성과 게시판 예시 수치 (게시하고 나면 진짜 게시물이 여기에 더해져요)
+export const SEED_POSTS: Post[] = (
+  [
+    [9, 29, "이번 주 AI 소식 5가지", "묶음", 42, 18, 640],
+    [9, 30, "에이전트가 뭐길래", "심층", 61, 47, 910],
+    [10, 1, "오늘의 AI 소식 5가지", "묶음", 38, 15, 580],
+    [10, 2, "무료 AI 도구 비교", "심층", 77, 66, 1240],
+    [10, 3, "오늘의 AI 소식 5가지", "묶음", 45, 20, 700],
+    [10, 4, "AI 반도체 한눈에", "심층", 53, 39, 860],
+  ] as const
+).map(([m, d, title, type, likes, saves, reach]) => ({ id: `sample-${m}-${d}`, postedAt: kst10(m, d), title, type, likes, saves, reach, sample: true }));

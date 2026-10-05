@@ -1306,6 +1306,132 @@ body {
     opacity: 0;
   }
 }
+/* ---------- 2단계 기능용 (디자인 다듬기 전 기본 모양) ---------- */
+.draft-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.draft-pick select {
+  min-width: 0;
+  flex: 1;
+  min-height: 38px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 4px 10px;
+  background: var(--paper);
+  font: inherit;
+  color: inherit;
+}
+.engine {
+  flex: none;
+  font-family: var(--display);
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+}
+.engine--groq {
+  background: var(--mint);
+}
+.engine--template {
+  background: var(--butter);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0 6px;
+  color: var(--sky-deep);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}
+.link-btn:disabled {
+  color: var(--ink-soft);
+  text-decoration: none;
+  cursor: default;
+}
+.empty {
+  margin: 0;
+  padding: 18px;
+  text-align: center;
+  color: var(--ink-soft);
+  list-style: none;
+}
+.card-ops {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.card-ops .btn {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 14px;
+}
+.print__item {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.print__item:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.blog-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.blog-edit__sec {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 14px 12px;
+  margin: 0;
+}
+.blog-edit__sec legend {
+  font-family: var(--display);
+  padding: 0 4px;
+}
+.blog-edit__sec input,
+.blog-edit__sec textarea {
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--paper);
+  resize: vertical;
+}
+.blog-edit__sec .link-btn {
+  align-self: flex-end;
+}
+.roster__prompt {
+  grid-column: 1 / -1;
+}
+.roster__prompt > span {
+  display: flex;
+  justify-content: space-between;
+}
+.tbl .num {
+  width: 72px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 6px;
+  background: var(--paper);
+  font: inherit;
+}
+.backup {
+  flex-wrap: wrap;
+}
+.more {
+  align-self: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lab *,
   .lab *::before,
@@ -1336,6 +1462,9 @@ body {
   }
   .roster__role {
     grid-column: 2;
+  }
+  .drafts li {
+    flex-wrap: wrap;
   }
   .panel-wrap {
     padding: calc(env(safe-area-inset-top, 0px) + 8px) 8px calc(env(safe-area-inset-bottom, 0px) + 8px);

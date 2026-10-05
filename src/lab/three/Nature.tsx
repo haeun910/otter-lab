@@ -4,7 +4,6 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { BUILDINGS, COLORS, MAP, doorPoint } from "../data/buildings";
-import { NEWS } from "../data/demo";
 import { useLab } from "../store";
 import { toyMat } from "./Otter";
 
@@ -191,7 +190,6 @@ function Bottles() {
       Array.from({ length: 7 }).map((_, i) => ({
         offset: i / 7,
         lane: MAP.riverZ + (i % 3 - 1) * 1.1,
-        news: NEWS[i * 3 % NEWS.length],
         color: [COLORS.sky, COLORS.mint, COLORS.coral, COLORS.butter][i % 4],
       })),
     [],
@@ -210,7 +208,11 @@ function Bottles() {
   const click = (e: ThreeEvent<MouseEvent>, i: number) => {
     e.stopPropagation();
     if (e.delta > 8) return;
-    say(`떠내려온 소식: ${items[i].news.title}`);
+    // 가장 최근에 받은 소식 중 하나를 건져요
+    const { inbox, library } = useLab.getState();
+    const link = inbox[(i * 3) % Math.max(1, inbox.length)];
+    const news = library.find((n) => n.link === link) ?? library[0];
+    if (news) say(`떠내려온 소식: ${news.title}`);
   };
   return (
     <group>

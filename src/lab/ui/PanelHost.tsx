@@ -18,7 +18,7 @@ import {
 // 사물마다 작업 창의 겉모습이 달라요 (모니터, 원고지, 코르크판…)
 const FRAME: Record<PanelKind, { frame: string; sub: string }> = {
   inbox: { frame: "monitor", sub: "오늘 강을 타고 도착한 소식이에요" },
-  cardEditor: { frame: "monitor", sub: "오늘 만든 카드뉴스 초안을 고쳐요" },
+  cardEditor: { frame: "monitor", sub: "카드뉴스 초안을 고쳐요" },
   printer: { frame: "print", sub: "완성된 카드를 이미지로 뽑아요" },
   blogDesk: { frame: "paper", sub: "네이버 블로그에 올릴 글이에요" },
   mailboat: { frame: "postcard", sub: "확인한 카드뉴스를 인스타그램으로 보내요" },
@@ -74,7 +74,6 @@ export default function PanelHost() {
             <h2 id="panel-title">{focus.label}</h2>
             <p>{f.sub}</p>
           </div>
-          <span className="sample-badge">예시 데이터</span>
           <button className="btn btn--light" onClick={close}>
             닫기
           </button>
