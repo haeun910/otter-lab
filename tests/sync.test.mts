@@ -9,7 +9,7 @@ install();
 const { useLab } = await import("../src/lab/store");
 const { startSync, flush, pull, stopSync } = await import("../src/lab/cloud/sync");
 const { fromRows } = await import("../src/lab/cloud/mapping");
-const cloud = { url: "https://x.supabase.co", key: "anon", token: async () => "owner-token" };
+const cloud = { url: "https://x.supabase.co", key: "sb_publishable_test", token: async () => "owner-token" };
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // 1) 빈 클라우드에 처음 연결 → 이 브라우저 데이터를 올려요

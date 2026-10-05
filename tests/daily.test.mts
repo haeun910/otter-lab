@@ -8,7 +8,7 @@ import { SEED_DRAFTS, SEED_POSTS, NEWS } from "../src/lab/data/demo";
 
 install();
 const KST = (h: number, m = 0, d = 6) => Date.UTC(2026, 9, d, h - 9, m);
-const env = { supabaseUrl: "https://x.supabase.co", serviceKey: "service", telegramToken: "tok", telegramChat: "42", labUrl: "https://lab.example" };
+const env = { supabaseUrl: "https://x.supabase.co", serviceKey: "sb_secret_test", telegramToken: "tok", telegramChat: "42", labUrl: "https://lab.example" };
 
 // 클라우드에 기존 데이터: 예시 초안·게시물·소식, 회의 시간 10:00
 for (const r of toRows({ drafts: SEED_DRAFTS, posts: SEED_POSTS, library: NEWS.slice(0, 5), schedule: { meetingAt: "10:00" }, meetings: [] })) db.set(`${r.kind}|${r.id}`, r as never);
@@ -56,6 +56,10 @@ assert.equal(r.ran, true);
 assert.ok(r.drafts.every((d) => d.engine === "groq"));
 const used = new Set(fromRows([...db.values()] as never).drafts!.filter((d) => d.createdAt < KST(10, 0, 7)).flatMap((d) => d.sources));
 assert.ok(r.drafts.flatMap((d) => d.sources).every((l) => !used.has(l)), "어제 쓴 소식은 빼요");
+
+// 예전 service_role 키(JWT)도 돼요
+r = await runDaily({ ...env, serviceKey: "eyJ-legacy-service", force: true }, KST(9, 0, 7));
+assert.equal(r.ran, true);
 
 // FORCE는 시간·중복 상관없이
 r = await runDaily({ ...env, force: true }, KST(8, 0, 7));

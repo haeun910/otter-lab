@@ -11,6 +11,7 @@ export default defineConfig({
   define: {
     "process.env.NEXT_PUBLIC_SUPABASE_URL": "undefined",
     "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY": "undefined",
+    "process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "undefined",
     "process.env.NEXT_PUBLIC_LOGIN_GOOGLE": "undefined",
   },
   resolve: { alias: { "@": resolve(__dirname, "..") } },

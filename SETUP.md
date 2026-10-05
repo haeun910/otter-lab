@@ -12,7 +12,7 @@
 | 5 | GitHub에 비밀값 넣기 | 연구소를 닫아 둬도 매일 자동 회의를 해요 |
 
 > 아래에 나오는 키들은 비밀번호와 같아요. 채팅·이슈·코드에 붙여 넣지 말고, 알려 드리는 설정 칸에만 넣어 주세요.
-> 특히 Supabase의 `service_role` 키는 GitHub 비밀값에만 넣어요. Vercel이나 `NEXT_PUBLIC_`으로 시작하는 칸에는 절대 넣지 마세요.
+> 특히 Supabase의 secret 키(`sb_secret_...`, 예전 이름 `service_role`)는 GitHub 비밀값에만 넣어요. Vercel이나 `NEXT_PUBLIC_`으로 시작하는 칸에는 절대 넣지 마세요.
 
 ---
 
@@ -52,10 +52,30 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
 1. <https://supabase.com/dashboard> → **New project** (지역은 `Northeast Asia (Seoul)`이 가까워요).
 2. 왼쪽 **SQL Editor** → **New query** → 이 저장소의 [`supabase/schema.sql`](supabase/schema.sql) 내용을 통째로 붙여 넣어요.
 3. 맨 아래 줄의 `'me@example.com'`을 **소장님 이메일**로 바꾸고 **Run**. 이 이메일로 로그인한 사람만 연구소를 열 수 있어요.
-4. **Project Settings → API**(또는 **API Keys**)에서 세 가지를 메모해요:
-   - Project URL (`https://xxxx.supabase.co`)
-   - `anon` `public` 키 (브라우저에 써도 되는 키)
-   - `service_role` 키 (비밀! 자동 회의 전용)
+4. **주소 하나와 키 두 개를 메모해요.** 메모장을 열어 두고 하나씩 복사해 붙여 두세요.
+
+   **① 프로젝트 주소 (Project URL)**
+   - 프로젝트 첫 화면 맨 위의 **Connect** 버튼을 누르면 `https://abcdefgh.supabase.co` 처럼 생긴 주소가 보여요.
+   - (Connect 버튼이 안 보이면) 왼쪽 아래 톱니바퀴 **Project Settings → Data API**에도 있어요.
+
+   **② publishable 키 (공개해도 되는 키)**
+   - 왼쪽 아래 톱니바퀴 **Project Settings → API Keys**로 가요.
+   - 위쪽 탭 중 **Publishable and secret API keys**를 골라요.
+   - **Publishable key** 칸의 `sb_publishable_...` 로 시작하는 값을 복사해요.
+
+   **③ secret 키 (비밀 키, 자동 회의 전용)**
+   - 같은 화면 아래 **Secret keys** 칸에서 눈 모양(보기) 또는 복사 버튼을 눌러 `sb_secret_...` 로 시작하는 값을 복사해요.
+   - 이 키는 데이터베이스를 마음대로 고칠 수 있는 열쇠예요. **GitHub 비밀값(5단계)에만** 넣고, 다른 곳에는 붙여 넣지 마세요.
+
+   > 예전에 만든 프로젝트라 **Legacy API Keys** 탭만 있으면, ② 대신 `anon` 키, ③ 대신 `service_role` 키를 써도 돼요 (둘 다 `eyJ`로 시작해요).
+
+   어디에 넣는지 미리 보면:
+
+   | 메모한 것 | Vercel (4단계) | GitHub 비밀값 (5단계) |
+   |---|---|---|
+   | ① 프로젝트 주소 | `NEXT_PUBLIC_SUPABASE_URL` | `SUPABASE_URL` |
+   | ② publishable 키 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 넣지 않아요 |
+   | ③ secret 키 | **넣지 마세요** | `SUPABASE_SECRET_KEY` |
 5. **Authentication → URL Configuration**
    - Site URL: 4단계에서 받을 Vercel 주소 (나중에 채워도 돼요)
    - Redirect URLs: Vercel 주소와 `http://localhost:3000` 을 추가해요.
@@ -70,8 +90,8 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
 
    | 이름 | 값 |
    |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase `anon` 키 |
+   | `NEXT_PUBLIC_SUPABASE_URL` | ① 프로젝트 주소 |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ② publishable 키 (예전 프로젝트면 이름을 `NEXT_PUBLIC_SUPABASE_ANON_KEY`로 하고 anon 키) |
    | `GROQ_API_KEY` | Groq 키 |
    | `GROQ_MODEL` | (선택) 모델 이름 |
 
@@ -89,8 +109,8 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
 
 | 이름 | 값 |
 |---|---|
-| `SUPABASE_URL` | Supabase Project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase `service_role` 키 |
+| `SUPABASE_URL` | ① 프로젝트 주소 |
+| `SUPABASE_SECRET_KEY` | ③ secret 키 (예전 프로젝트면 service_role 키) |
 | `GROQ_API_KEY` | Groq 키 |
 | `DISCORD_WEBHOOK_URL` | 디스코드 웹후크 주소 (디스코드를 쓸 때) |
 | `TELEGRAM_BOT_TOKEN` | 텔레그램 봇 토큰 (텔레그램을 쓸 때) |
@@ -130,5 +150,5 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
 - **로그인 링크를 눌렀는데 다시 로그인 화면이에요** → Supabase Redirect URLs에 지금 주소가 들어 있는지 확인해 주세요.
 - **"이 계정은 연구소의 주인으로 등록돼 있지 않아요"** → `schema.sql` 마지막 줄 이메일과 로그인한 이메일이 같은지 확인해 주세요. SQL Editor에서 `select * from lab_owner;`로 볼 수 있어요.
 - **로그인 메일이 안 와요** → Supabase 기본 메일은 한 시간에 몇 통으로 제한돼 있어요. 스팸함을 보고, 잠시 뒤 다시 해 주세요.
-- **자동 회의가 안 돌아요** → Actions 탭의 실행 기록에서 빨간 줄을 눌러 보면 이유가 한국어로 나와요 (예: `SUPABASE_SERVICE_ROLE_KEY 환경변수가 없어요`).
+- **자동 회의가 안 돌아요** → Actions 탭의 실행 기록에서 빨간 줄을 눌러 보면 이유가 한국어로 나와요 (예: `SUPABASE_SECRET_KEY 환경변수가 없어요`).
 - **초안에 (뼈대)가 붙어요** → `GROQ_API_KEY`가 비었거나 Groq 사용량을 넘었어요. 알림의 '참고' 줄에 이유가 적혀 있어요.

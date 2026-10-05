@@ -1,4 +1,4 @@
-// Supabase(PostgREST)에 lab_items를 읽고 쓰는 얇은 도우미. 브라우저(로그인 토큰)와 자동 회의 스크립트(서비스 키)가 같이 써요.
+// Supabase(PostgREST)에 lab_items를 읽고 쓰는 얇은 도우미. 브라우저(로그인 토큰)와 자동 회의 스크립트(secret 키)가 같이 써요.
 
 export type Kind = "news" | "draft" | "post" | "meeting" | "setting";
 export interface Row {
@@ -9,8 +9,18 @@ export interface Row {
 
 export interface Cloud {
   url: string; // https://xxxx.supabase.co
-  key: string; // anon 키 또는 서비스 키
-  token: () => Promise<string>; // Authorization에 넣을 토큰 (로그인 토큰 또는 서비스 키)
+  key: string; // publishable 키(브라우저) 또는 secret 키(자동 회의). 예전 이름은 anon / service_role
+  token: () => Promise<string>; // 로그인한 사람의 토큰 (자동 회의는 빈 값)
+}
+
+/**
+ * 새 키(sb_publishable_·sb_secret_)는 apikey 헤더에만 넣어야 해요 (Bearer로 보내면 401).
+ * 예전 키(eyJ로 시작하는 JWT)는 둘 다 넣어야 해요. 로그인한 사람의 토큰은 언제나 Bearer로.
+ */
+export async function headersFor(c: Cloud): Promise<Record<string, string>> {
+  const t = await c.token();
+  const bearer = t || (c.key.startsWith("eyJ") ? c.key : "");
+  return { apikey: c.key, ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) };
 }
 
 const PAGE = 1000;
@@ -19,7 +29,7 @@ const CHUNK = 400;
 async function call(c: Cloud, path: string, init: RequestInit = {}) {
   const res = await fetch(`${c.url.replace(/\/$/, "")}/rest/v1/${path}`, {
     ...init,
-    headers: { apikey: c.key, authorization: `Bearer ${await c.token()}`, "content-type": "application/json", ...(init.headers ?? {}) },
+    headers: { ...(await headersFor(c)), "content-type": "application/json", ...(init.headers ?? {}) },
   });
   if (!res.ok) throw new Error(`Supabase ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return res;

@@ -27,7 +27,7 @@ export interface DailyEnv {
 type Staff = Record<string, { title: string; name: string; prompt?: string }>;
 
 export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: boolean; reason: string; drafts: Draft[]; message?: string }> {
-  const cloud: Cloud = { url: env.supabaseUrl, key: env.serviceKey, token: async () => env.serviceKey };
+  const cloud: Cloud = { url: env.supabaseUrl, key: env.serviceKey, token: async () => "" };
   const data = fromRows(await selectRows(cloud));
   const meetings = data.meetings ?? [];
   const schedule = (data.schedule as { meetingAt?: string } | undefined) ?? {};
@@ -121,12 +121,12 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
 async function main() {
   const need = (k: string) => {
     const v = process.env[k];
-    if (!v) throw new Error(`${k} 환경변수가 없어요 (SETUP.md 참고)`);
+    if (!v) throw new Error(`${k === "SUPABASE_SERVICE_ROLE_KEY" ? "SUPABASE_SECRET_KEY" : k} 환경변수가 없어요 (SETUP.md 참고)`);
     return v;
   };
   const res = await runDaily({
     supabaseUrl: process.env.SUPABASE_URL || need("NEXT_PUBLIC_SUPABASE_URL"),
-    serviceKey: need("SUPABASE_SERVICE_ROLE_KEY"),
+    serviceKey: process.env.SUPABASE_SECRET_KEY || need("SUPABASE_SERVICE_ROLE_KEY"),
     telegramToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChat: process.env.TELEGRAM_CHAT_ID,
     discordWebhook: process.env.DISCORD_WEBHOOK_URL,

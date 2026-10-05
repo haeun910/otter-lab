@@ -16,10 +16,14 @@ export function install() {
     calls.push(`${method} ${url}`);
     const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "content-type": "application/json" } });
     if (url.includes("/rest/v1/")) {
-      const auth = (init.headers as Record<string, string>).authorization;
-      if (!auth?.startsWith("Bearer ")) return json({ message: "no auth" }, 401);
+      // 진짜 Supabase처럼: 새 키(sb_)를 Bearer로 보내면 거절, secret 키는 apikey 헤더만으로 서비스 권한
+      const h = init.headers as Record<string, string>;
+      const auth = h.authorization;
+      if (auth?.startsWith("Bearer sb_")) return json({ message: "Invalid API key" }, 401);
+      const service = h.apikey?.startsWith("sb_secret_") || auth === "Bearer eyJ-legacy-service";
+      if (!service && !auth) return json({ message: "no auth" }, 401);
       const u = new URL(url);
-      if (u.pathname.endsWith("/rpc/is_lab_owner")) return json(auth === "Bearer owner-token" || auth === "Bearer service");
+      if (u.pathname.endsWith("/rpc/is_lab_owner")) return json(service || auth === "Bearer owner-token");
       if (method === "GET") {
         const kind = u.searchParams.get("kind")?.replace("eq.", "");
         const limit = +u.searchParams.get("limit")!;
