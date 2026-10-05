@@ -1611,6 +1611,10 @@ body {
   color: var(--coral-deep);
   font-size: 14px;
 }
+.gate__info {
+  font-size: 13px;
+  word-break: break-all;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .lab *,

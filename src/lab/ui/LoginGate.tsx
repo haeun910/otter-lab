@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { GOOGLE_LOGIN, cloudConfigured, configProblem } from "../cloud/config";
+import { GOOGLE_LOGIN, cloudConfigured, configProblem, connectionInfo } from "../cloud/config";
 import { sendLoginLink, signInWithGoogle, signOut, watchSession, type Gate } from "../cloud/session";
 import { OtterFace } from "./Hud";
 
@@ -70,11 +70,13 @@ export default function LoginGate() {
                     } catch (x) {
                       const m = x instanceof Error ? x.message : String(x);
                       setErr(
-                        /fetch|network|Invalid value/i.test(m)
-                          ? `Supabase에 연결하지 못했어요. Vercel의 Supabase 주소·키 값을 확인해 주세요. (${m})`
-                          : /rate|limit|seconds/i.test(m)
-                            ? `메일을 너무 자주 보냈어요. 잠시 뒤 다시 해 주세요. (${m})`
-                            : m,
+                        /Invalid API key/i.test(m)
+                          ? `Supabase가 이 키를 모른대요 (Invalid API key). 아래 연결 정보가 Supabase 화면의 주소·publishable 키와 같은지 확인해 주세요.`
+                          : /fetch|network|Invalid value/i.test(m)
+                            ? `Supabase에 연결하지 못했어요. Vercel의 Supabase 주소·키 값을 확인해 주세요. (${m})`
+                            : /rate|limit|seconds/i.test(m)
+                              ? `메일을 너무 자주 보냈어요. 잠시 뒤 다시 해 주세요. (${m})`
+                              : m,
                       );
                     }
                   }}
@@ -92,6 +94,15 @@ export default function LoginGate() {
                     </button>
                   )}
                   {err && <p className="gate__err">{err}</p>}
+                  {err && (
+                    <p className="muted gate__info">
+                      지금 연결 정보
+                      <br />
+                      주소: {connectionInfo().url}
+                      <br />
+                      키: {connectionInfo().key}
+                    </p>
+                  )}
                 </form>
               ))}
           </>
