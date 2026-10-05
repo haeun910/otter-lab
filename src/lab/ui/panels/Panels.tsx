@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUILDINGS } from "../../data/buildings";
 import type { Draft, DraftType, NewsItem } from "../../data/demo";
-import { fetchNews, fetchStatus, writeDraft } from "../../gen/client";
+import { writeJob } from "../../company";
+import { fetchNews, fetchStatus } from "../../gen/client";
 import { DEFAULT_PROMPTS } from "../../gen/prompt";
 import { draftImages, saveFiles } from "../../render/cardImage";
 import { draftLabel, pickCurrent, useLab, type SavedData } from "../../store";
@@ -121,30 +122,8 @@ async function makeDraft(type: DraftType) {
   const byLink = new Map(st.library.map((n) => [n.link, n]));
   const items = st.basket.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n));
   if (!items.length) return;
-  st.setBusy("draft");
-  try {
-    const w = await writeDraft({
-      type,
-      items: type === "심층" ? items.slice(0, 1) : items.slice(0, BUNDLE_MAX),
-      brand: st.brand,
-      prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt },
-    });
-    const now = Date.now();
-    st.addDraft({ id: `d${now.toString(36)}`, type, createdAt: now, status: "검토 대기", engine: w.engine, sources: items.map((n) => n.link), deck: w.deck, blog: w.blog });
-    st.clearBasket();
-    const who = `${st.staff.cards?.name ?? "모모"}와 ${st.staff.blog?.name ?? "테오"}`;
-    st.say(
-      w.engine === "groq"
-        ? `${who}가 ${type} 초안을 썼어요. 카드뉴스 공방과 블로그 서재에서 확인해 보세요.`
-        : w.why === "nokey"
-          ? `Groq 키가 아직 없어서, 소식 요약으로 ${type} 뼈대 초안을 만들었어요. 공방에서 다듬어 주세요.`
-          : w.why === "error"
-            ? `Groq 연결에 실패해서 뼈대 초안으로 대신 만들었어요. 잠시 뒤 다시 해 보세요.`
-            : `서버 없이 열려 있어서, 소식 요약으로 ${type} 뼈대 초안을 만들었어요.`,
-    );
-  } finally {
-    useLab.getState().setBusy(null);
-  }
+  st.clearBasket();
+  await writeJob(type, type === "심층" ? items.slice(0, 1) : items.slice(0, BUNDLE_MAX));
 }
 
 function BasketFoot() {

@@ -2,49 +2,49 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useRef } from "react";
 import * as THREE from "three";
-import { ROOM } from "../data/buildings";
+import { SITE, byId, toWorld } from "../data/buildings";
 import { live, useLab } from "../store";
 
-const ELEV = 0.86; // 위에서 내려다보는 각도 (라디안)
-const BASE = 32; // 바깥 기본 거리
+const ELEV = 0.98; // 위에서 내려다보는 각도 (라디안)
+const CENTER = new THREE.Vector3(1.8, 0, (SITE.minZ + SITE.riverZ) / 2 - 0.5);
 
-/** 바깥에서는 내 수달을 비스듬히 따라가고, 방에서는 방 전체를, 사물을 누르면 사물 가까이로 */
-export default function CameraRig({ mode }: { mode: "outside" | "room" }) {
+/** 본관 전체 → 방 → 사물 순서로 다가가요 */
+export default function CameraRig() {
   const camera = useThree((s) => s.camera);
   const aspect = useThree((s) => s.size.width / s.size.height);
+  const scene = useLab((s) => s.scene);
   const focus = useLab((s) => s.focus);
-  const look = useRef(new THREE.Vector3(live.player.x, 0, live.player.z));
+  const look = useRef(CENTER.clone());
+  const want = useRef(new THREE.Vector3());
+  const wantLook = useRef(new THREE.Vector3());
   const first = useRef(true);
-  const want = new THREE.Vector3();
-  const wantLook = new THREE.Vector3();
 
   useFrame((_, dt) => {
-    const p = live.player;
-    if (mode === "outside") {
-      // 세로로 긴 휴대폰 화면에서는 조금 더 멀리서 봐요
-      const dist = BASE * live.camZoom * (aspect < 1 ? 1 + (1 - aspect) * 0.9 : 1);
-      const az = live.camAzimuth;
-      wantLook.set(p.x, 0.6, p.z);
-      want.set(
-        p.x + Math.sin(az) * dist * Math.cos(ELEV),
-        dist * Math.sin(ELEV),
-        p.z + Math.cos(az) * dist * Math.cos(ELEV),
-      );
-    } else if (focus) {
-      const [ox, oz] = focus.pos;
-      wantLook.set(ox, 1.05, oz);
-      const far = aspect < 1 ? 1 + (1 - aspect) * 0.8 : 1;
-      want.set(ox, 2.7 * far, oz + 2.9 * far);
+    // 세로로 긴 휴대폰 화면에서도 양옆이 잘리지 않게, 보여줄 폭에 맞춰 물러나요
+    const tanH = Math.tan(THREE.MathUtils.degToRad(15)) * aspect;
+    const fit = (halfW: number, len: number) => Math.max(1, halfW / tanH / len);
+    if (focus && scene !== "overview") {
+      const [ox, oz] = toWorld(byId(scene), focus.pos);
+      wantLook.current.set(ox, 1.0, oz);
+      // 회의 탁자는 둘러앉은 연구원들이 다 보이게 위에서
+      const [y, z, half] = focus.furniture === "roundTable" ? [9, 5, 3.2] : [2.8, 3.1, 1.8];
+      const f = fit(half, Math.hypot(y, z));
+      want.current.set(ox, y * f, oz + z * f);
+    } else if (scene !== "overview") {
+      const [x, z] = byId(scene).pos;
+      wantLook.current.set(x, 0.5, z - 0.7);
+      const f = fit(4, Math.hypot(8.6, 6.6));
+      want.current.set(x, 8.6 * f, z + 6.6 * f);
     } else {
-      const sx = THREE.MathUtils.clamp(p.x * 0.35, -1, 1);
-      wantLook.set(sx, 0.4, -0.2);
-      const far = aspect < 1 ? 1 + (1 - aspect) * 1.6 : 1;
-      want.set(sx * (aspect < 1 ? 0.3 : 1), 9.2 * far, ROOM.d / 2 + 6.4 * far);
+      const dist = Math.max(54, 17 / tanH) * live.camZoom;
+      const az = live.camAzimuth;
+      wantLook.current.copy(CENTER);
+      want.current.set(CENTER.x + Math.sin(az) * dist * Math.cos(ELEV), dist * Math.sin(ELEV), CENTER.z + Math.cos(az) * dist * Math.cos(ELEV));
     }
-    const k = first.current ? 1 : 1 - Math.pow(focus ? 0.02 : 0.004, dt);
+    const k = first.current ? 1 : 1 - Math.pow(focus ? 0.02 : 0.012, dt);
     first.current = false;
-    camera.position.lerp(want, k);
-    look.current.lerp(wantLook, k);
+    camera.position.lerp(want.current, k);
+    look.current.lerp(wantLook.current, k);
     camera.lookAt(look.current);
   });
   return null;

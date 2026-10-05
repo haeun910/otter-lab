@@ -1441,6 +1441,132 @@ body {
   border: 1.5px solid var(--line);
 }
 
+/* ---------- 본관·회의 (디자인 다듬기 전 기본 모양) ---------- */
+.sign strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sign__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink);
+}
+.sign em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.sign em.sign__busy {
+  color: var(--coral-deep);
+}
+.nametag3d--busy {
+  background: var(--butter);
+  border: 1.5px solid var(--ink);
+}
+.clock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 6px 4px 14px;
+  font-variant-numeric: tabular-nums;
+}
+.clock__now {
+  font-family: var(--display);
+  font-size: 16px;
+}
+.clock__next {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.clock .chip {
+  min-height: 32px;
+}
+.agenda section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 2px dashed var(--line);
+  padding-bottom: 14px;
+}
+.agenda section p {
+  margin: 0;
+}
+.agenda__who {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 18px;
+}
+.agenda__who span {
+  font-size: 13px;
+  background: var(--butter);
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  padding: 1px 10px;
+}
+.agenda__news li {
+  align-items: flex-start;
+}
+.agenda__pick {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: none;
+  font-size: 13px;
+}
+.agenda__pick label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.agenda__list {
+  margin: 0;
+  padding-left: 20px;
+}
+.star {
+  color: #e3a520;
+  margin-right: 2px;
+}
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.minutes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.minutes > li {
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.minutes time {
+  font-family: var(--display);
+}
+.minutes ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lab *,
   .lab *::before,
@@ -1474,6 +1600,33 @@ body {
   }
   .drafts li {
     flex-wrap: wrap;
+  }
+  /* 휴대폰: 간판은 이름과 상태만, 시계는 한 줄로 */
+  .sign {
+    padding: 2px 8px;
+    border-width: 2px;
+  }
+  .sign strong {
+    font-size: 12px;
+  }
+  .sign span {
+    display: none;
+  }
+  .sign em {
+    font-size: 10px;
+  }
+  .clock {
+    padding: 2px 4px 2px 10px;
+  }
+  .clock__now {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .clock__next {
+    display: none;
+  }
+  .clock .chip {
+    white-space: nowrap;
   }
   .panel-wrap {
     padding: calc(env(safe-area-inset-top, 0px) + 8px) 8px calc(env(safe-area-inset-bottom, 0px) + 8px);

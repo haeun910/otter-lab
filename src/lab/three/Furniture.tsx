@@ -327,6 +327,89 @@ function Drawer() {
   );
 }
 
+/** 회의실 가운데: 실내 나무를 둘러싼 둥근 탁자와 의자 */
+export const SEATS = 8;
+export const SEAT_R = 2.05;
+function RoundTable() {
+  return (
+    <group>
+      {/* 나무 화단 */}
+      <mesh position={[0, 0.25, 0]} castShadow receiveShadow material={toyMat(COLORS.stone)}>
+        <cylinderGeometry args={[0.55, 0.6, 0.5, 20]} />
+      </mesh>
+      <mesh position={[0, 0.95, 0]} castShadow material={toyMat(COLORS.woodDark)}>
+        <cylinderGeometry args={[0.11, 0.16, 1.4, 10]} />
+      </mesh>
+      {[
+        [0, 1.95, 0, 0.62],
+        [0.38, 1.75, 0.15, 0.42],
+        [-0.36, 1.8, -0.12, 0.45],
+        [0.05, 2.35, -0.15, 0.38],
+      ].map(([x, y, z, r], i) => (
+        <mesh key={i} castShadow position={[x, y, z]} material={toyMat(i % 2 ? COLORS.leafDeep : COLORS.leaf)}>
+          <sphereGeometry args={[r, 18, 14]} />
+        </mesh>
+      ))}
+      {/* 탁자 (가운데가 뚫린 고리) */}
+      <mesh position={[0, 0.78, 0]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow material={toyMat(COLORS.wood)}>
+        <ringGeometry args={[0.7, 1.45, 40]} />
+      </mesh>
+      <mesh position={[0, 0.74, 0]} castShadow material={toyMat(COLORS.woodDark)}>
+        <cylinderGeometry args={[1.45, 1.45, 0.08, 40, 1, true]} />
+      </mesh>
+      {[0, 1, 2, 3].map((i) => {
+        const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        return (
+          <mesh key={i} position={[Math.cos(a) * 1.1, 0.37, Math.sin(a) * 1.1]} material={toyMat(COLORS.woodDark)}>
+            <cylinderGeometry args={[0.06, 0.06, 0.74, 8]} />
+          </mesh>
+        );
+      })}
+      {/* 탁자 위 서류 */}
+      {[0.4, 2.2, 4.1].map((a, i) => (
+        <mesh key={i} position={[Math.cos(a) * 1.1, 0.79, Math.sin(a) * 1.1]} rotation={[-Math.PI / 2, 0, a]} material={toyMat(["#FFFFFF", COLORS.butter, COLORS.sky][i])}>
+          <planeGeometry args={[0.3, 0.4]} />
+        </mesh>
+      ))}
+      {/* 의자 */}
+      {Array.from({ length: SEATS }).map((_, i) => {
+        const a = (i / SEATS) * Math.PI * 2;
+        return (
+          <group key={i} position={[Math.sin(a) * (SEAT_R + 0.35), 0, Math.cos(a) * (SEAT_R + 0.35)]} rotation={[0, a, 0]}>
+            <mesh position={[0, 0.3, 0]} castShadow material={toyMat(i % 2 ? COLORS.mint : COLORS.sky)}>
+              <cylinderGeometry args={[0.24, 0.24, 0.1, 14]} />
+            </mesh>
+            <mesh position={[0, 0.15, 0]} material={toyMat(COLORS.woodDark)}>
+              <cylinderGeometry args={[0.04, 0.06, 0.3, 6]} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+function Chalkboard() {
+  return (
+    <group>
+      {[-0.75, 0.75].map((x) => (
+        <mesh key={x} position={[x, 0.7, 0]} material={toyMat(COLORS.woodDark)}>
+          <boxGeometry args={[0.08, 1.4, 0.08]} />
+        </mesh>
+      ))}
+      <RoundedBox args={[1.7, 1.1, 0.1]} radius={0.05} position={[0, 1.45, 0]} castShadow material={toyMat(COLORS.wood)} />
+      <mesh position={[0, 1.45, 0.06]} material={toyMat("#3E6B5A", 0.95)}>
+        <planeGeometry args={[1.5, 0.9]} />
+      </mesh>
+      {[0.25, 0.08, -0.09, -0.26].map((y, i) => (
+        <mesh key={y} position={[-0.15 + (i % 2) * 0.1, 1.45 + y, 0.07]} material={toyMat("#E8F2EC", 0.95)}>
+          <planeGeometry args={[0.9 - i * 0.12, 0.04]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 function MonitorDesk() {
   return (
     <group>
@@ -360,6 +443,10 @@ export default function Furniture({ kind }: { kind: Kind }) {
       return <BigDesk />;
     case "drawer":
       return <Drawer />;
+    case "roundTable":
+      return <RoundTable />;
+    case "chalkboard":
+      return <Chalkboard />;
   }
 }
 
@@ -372,8 +459,10 @@ export const FOOTPRINT: Record<Kind, { w: number; d: number }> = {
   bookshelf: { w: 3, d: 0.7 },
   board: { w: 2.5, d: 0.3 },
   rosterBook: { w: 0.6, d: 0.6 },
-  bigDesk: { w: 2.3, d: 2.2 },
+  bigDesk: { w: 2.3, d: 1.1 },
   drawer: { w: 1.2, d: 0.7 },
+  roundTable: { w: 3.2, d: 3.2 },
+  chalkboard: { w: 1.7, d: 0.3 },
 };
 
 export { SCREEN_SKY };

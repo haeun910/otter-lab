@@ -65,6 +65,15 @@ export interface Post {
   sample?: boolean;
 }
 
+/** 회의 한 번의 기록 (회의록) */
+export interface Meeting {
+  id: string;
+  day: string; // 한국 날짜 YYYY-MM-DD
+  at: number; // 시작한 때
+  notes: string[]; // 회의록 줄
+  drafts: string[]; // 이 회의에서 만들기로 한 초안 id
+}
+
 // 한국 시간 오전 10시
 const kst10 = (m: number, d: number) => Date.UTC(2026, m - 1, d, 1);
 

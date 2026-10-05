@@ -39,7 +39,9 @@ export function Projector() {
         el.style.visibility = "hidden";
         return;
       }
-      const x = (v.x * 0.5 + 0.5) * size.width;
+      // 말풍선이 화면 밖으로 잘리지 않게 양옆을 붙잡아요
+      const half = el.offsetWidth / 2 + 6;
+      const x = Math.min(Math.max((v.x * 0.5 + 0.5) * size.width, half), size.width - half);
       const y = (-v.y * 0.5 + 0.5) * size.height;
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -100%)`;
       el.style.visibility = "visible";

@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { BUILDINGS, type RoomObject } from "./data/buildings";
-import { NEWS, SEED_DRAFTS, SEED_POSTS, type Blog, type Card, type Draft, type NewsItem, type Post } from "./data/demo";
+import { NEWS, SEED_DRAFTS, SEED_POSTS, type Blog, type Card, type Draft, type Meeting, type NewsItem, type Post } from "./data/demo";
 import { DEFAULT_PROMPTS } from "./gen/prompt";
 import { mergeNews } from "./news/rss";
 
-export type SceneId = "outside" | string; // 건물 id
+export type SceneId = "overview" | string; // 본관 전체 또는 방 id
 
-export type Pending = { type: "enter"; id: string } | { type: "use"; object: RoomObject } | { type: "exit" } | null;
+/** 연구소의 하루: 각자 방에서 일하다가, 회의 시간이 되면 회의실에 모여요 */
+export type Phase = "work" | "gathering" | "meeting" | "returning";
 
 export interface StaffEdit {
   title: string;
@@ -26,21 +27,16 @@ const LIBRARY_MAX = 3000;
 
 interface LabState {
   scene: SceneId;
-  fading: boolean;
-  pending: Pending;
   focus: RoomObject | null; // 카메라가 다가간 사물
   panelOpen: boolean;
-  spawnAt: string | null; // 바깥으로 나올 때 이 건물 문 앞에 서요
   hint: boolean; // 처음 안내 문구
   toast: string;
   mapOpen: boolean;
   speech: { key: string; text: string } | null; // 말풍선
-  nearDoor: string | null; // 문 앞에 서 있으면 그 건물 id
-  marker: [number, number] | null; // 목적지 표시
   hover: string | null; // 마우스를 올린 것
   busy: "news" | "draft" | "print" | null; // 시간이 걸리는 일
-  // 3D 장면이 등록해 두는 동작 (라벨을 눌러도 똑같이 움직이게)
-  actions: { enter?: (id: string) => void; use?: (o: RoomObject) => void; exit?: () => void; talk?: (key: string) => void };
+  phase: Phase;
+  writing: string[]; // 지금 초안을 쓰고 있는 직원 (cards, blog)
 
   // ---- 저장되는 연구소 데이터 ----
   staff: Record<string, StaffEdit>;
@@ -52,21 +48,22 @@ interface LabState {
   drafts: Draft[]; // 최신순
   current: string | null; // 공방·서재·선착장에서 보고 있는 초안
   posts: Post[];
+  schedule: { meetingAt: string }; // 매일 회의 시간 (한국 시간 "10:00")
+  meetings: Meeting[]; // 회의록 (최신순)
 
-  go: (scene: SceneId, spawnAt?: string | null) => void;
-  setPending: (p: Pending) => void;
   openFocus: (o: RoomObject) => void;
   closeFocus: () => void;
   say: (msg: string) => void;
   setMapOpen: (v: boolean) => void;
   setSpeech: (s: LabState["speech"]) => void;
   dismissHint: () => void;
-  setNearDoor: (id: string | null) => void;
-  setMarker: (m: [number, number] | null) => void;
   setHover: (h: string | null) => void;
   setBusy: (b: LabState["busy"]) => void;
-  setActions: (a: LabState["actions"]) => void;
+  setPhase: (p: Phase) => void;
+  setWriting: (who: string, on: boolean) => void;
   travel: (scene: SceneId) => void;
+  setSchedule: (s: LabState["schedule"]) => void;
+  addMeeting: (m: Meeting) => void;
 
   editStaff: (id: string, e: StaffEdit) => void;
   setBrand: (b: Brand) => void;
@@ -108,6 +105,8 @@ const initialData = () => ({
   drafts: SEED_DRAFTS,
   current: SEED_DRAFTS[0]?.id ?? null,
   posts: SEED_POSTS,
+  schedule: { meetingAt: "10:00" },
+  meetings: [] as Meeting[],
 });
 
 export type SavedData = ReturnType<typeof initialData>;
@@ -122,34 +121,21 @@ export const useLab = create<LabState>()(
       const patchDraft = (id: string, fn: (d: Draft) => Draft) => set((s) => ({ drafts: s.drafts.map((d) => (d.id === id ? fn(d) : d)) }));
       const patchCards = (id: string, fn: (cards: Card[]) => Card[]) => patchDraft(id, (d) => ({ ...d, deck: { ...d.deck, cards: fn(d.deck.cards) } }));
       return {
-        scene: "outside",
-        fading: false,
-        pending: null,
+        scene: "overview",
         focus: null,
         panelOpen: false,
-        spawnAt: null,
         hint: true,
         toast: "",
         mapOpen: false,
         speech: null,
-        nearDoor: null,
-        marker: null,
         hover: null,
         busy: null,
-        actions: {},
+        phase: "work",
+        writing: [],
         ...initialData(),
 
-        go: (scene, spawnAt = null) => {
-          if (get().fading) return;
-          set({ fading: true, pending: null, focus: null, panelOpen: false, mapOpen: false, marker: null, nearDoor: null });
-          live.path = [];
-          // 화면이 덮인 뒤 장면을 바꾸고 다시 걷어내요
-          setTimeout(() => set({ scene, spawnAt }), 380);
-          setTimeout(() => set({ fading: false }), 760);
-        },
-        setPending: (pending) => set({ pending }),
         openFocus: (o) => {
-          set({ focus: o, pending: null });
+          set({ focus: o });
           setTimeout(() => {
             if (get().focus?.id === o.id) set({ panelOpen: true });
           }, 650);
@@ -167,24 +153,17 @@ export const useLab = create<LabState>()(
           if (speech) speechTimer = setTimeout(() => set({ speech: null }), 4200);
         },
         dismissHint: () => set({ hint: false }),
-        setNearDoor: (nearDoor) => {
-          if (get().nearDoor !== nearDoor) set({ nearDoor });
-        },
-        setMarker: (marker) => set({ marker }),
-        setActions: (actions) => set({ actions }),
         setHover: (hover) => {
           if (get().hover !== hover) set({ hover });
           document.body.style.cursor = hover ? "pointer" : "";
         },
         setBusy: (busy) => set({ busy }),
-        travel: (scene) => {
-          const cur = get().scene;
-          if (scene === cur) {
-            set({ mapOpen: false });
-            return;
-          }
-          get().go(scene, scene === "outside" ? cur : null);
-        },
+        setPhase: (phase) => set({ phase }),
+        setWriting: (who, on) => set((s) => ({ writing: on ? [...new Set([...s.writing, who])] : s.writing.filter((w) => w !== who) })),
+        // 카메라가 그 방으로 날아가요 (본관 전체는 "overview")
+        travel: (scene) => set({ scene, focus: null, panelOpen: false, mapOpen: false, hint: false }),
+        setSchedule: (schedule) => set({ schedule }),
+        addMeeting: (m) => set((s) => ({ meetings: [m, ...s.meetings].slice(0, 200) })),
 
         editStaff: (id, e) => set((s) => ({ staff: { ...s.staff, [id]: e } })),
         setBrand: (brand) => set({ brand }),
@@ -254,9 +233,8 @@ export const draftLabel = (d: Draft) => d.deck.cards[0]?.title || d.blog.title |
 
 // 매 프레임 바뀌는 값은 리렌더 없이 공유해요
 export const live = {
-  player: { x: 0, z: 0.6, heading: 0.4, moving: false },
-  path: [] as [number, number][],
-  camAzimuth: Math.PI / 4, // 바깥 카메라 회전
+  camAzimuth: 0, // 본관 전체를 볼 때 카메라 회전
   camZoom: 1,
-  keys: new Set<string>(),
+  seated: 0, // 회의실 자리에 앉은 직원 수
+  atDesk: 0, // 자기 자리로 돌아간 직원 수
 };

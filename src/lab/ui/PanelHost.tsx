@@ -14,6 +14,7 @@ import {
   RosterPanel,
   StatsPanel,
 } from "./panels/Panels";
+import { MeetingPanel, MinutesPanel } from "./panels/Meeting";
 
 // 사물마다 작업 창의 겉모습이 달라요 (모니터, 원고지, 코르크판…)
 const FRAME: Record<PanelKind, { frame: string; sub: string }> = {
@@ -27,6 +28,8 @@ const FRAME: Record<PanelKind, { frame: string; sub: string }> = {
   roster: { frame: "note", sub: "오터랩 연구원들이에요" },
   brand: { frame: "desk", sub: "오터랩의 이름, 말투, 운영 방식을 정해요" },
   drafts: { frame: "drawer", sub: "지금까지 만든 초안이에요" },
+  meeting: { frame: "desk", sub: "오늘의 안건을 듣고 무엇을 만들지 정해요" },
+  minutes: { frame: "cork", sub: "지난 회의 기록과 회의 시간이에요" },
 };
 
 function Body({ kind }: { kind: PanelKind }) {
@@ -51,6 +54,10 @@ function Body({ kind }: { kind: PanelKind }) {
       return <BrandPanel />;
     case "drafts":
       return <DraftsPanel />;
+    case "meeting":
+      return <MeetingPanel />;
+    case "minutes":
+      return <MinutesPanel />;
   }
 }
 
