@@ -22,7 +22,8 @@
 2. 왼쪽 **API Keys** → **Create API Key** → 이름은 `otter-lab`.
 3. 나온 키(`gsk_`로 시작)를 메모해 두세요. 창을 닫으면 다시 볼 수 없어요.
 
-모델은 기본으로 `llama-3.3-70b-versatile`을 써요. 다른 모델을 쓰려면 Groq 콘솔의 **Models**에서 이름을 골라 `GROQ_MODEL`에 넣으면 돼요.
+모델은 기본으로 `openai/gpt-oss-120b`를 써요. 다른 모델(예: `qwen/qwen3.6-27b`)을 쓰려면 Groq 콘솔의 **Models**에서 이름을 골라 `GROQ_MODEL`에 넣으면 돼요.
+Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없어졌어요). 초안에 '(뼈대)'가 붙고 알림에 `Groq 404`가 보이면 모델 이름을 바꿔 주세요.
 
 ## 2. 텔레그램 봇
 

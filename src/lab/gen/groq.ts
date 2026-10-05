@@ -4,7 +4,7 @@ import { normalizeBlog, normalizeDeck, parseJsonLoose } from "./normalize";
 import { blogMessages, cardsMessages, type DraftRequest } from "./prompt";
 import { templateBlog, templateDeck } from "./template";
 
-export const groqModel = () => process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+export const groqModel = () => process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 export const groqReady = () => Boolean(process.env.GROQ_API_KEY);
 
 async function chat(messages: { role: string; content: string }[]): Promise<unknown> {
