@@ -102,7 +102,6 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ② publishable 키 (예전 프로젝트면 이름을 `NEXT_PUBLIC_SUPABASE_ANON_KEY`로 하고 anon 키) |
    | `GROQ_API_KEY` | Groq 키 |
    | `GROQ_MODEL` | (선택) 모델 이름. 비워 두면 `openai/gpt-oss-120b`. 넣을 때는 `openai/`, `qwen/` 같은 앞부분까지 통째로 |
-| `DISCORD_MENTION_USER_ID` | (선택) 디스코드 내 사용자 ID. 넣으면 알림에 @멘션이 붙어 휴대폰이 확실히 울려요 |
 
 3. **Deploy**. 끝나면 `https://otter-lab-xxxx.vercel.app` 같은 주소가 나와요. 이 주소를 Supabase의 Site URL·Redirect URLs에 넣어 주세요 (3-5단계).
 4. Vercel은 저장소의 **기본 브랜치**를 실제 서비스로 올려요. 5단계 맨 앞의 "기본 브랜치 바꾸기"를 먼저 하거나, Vercel **Settings → Git → Production Branch**를 `main`으로 바꾼 뒤 **Deployments → ⋯ → Redeploy** 해 주세요.
