@@ -1431,6 +1431,15 @@ body {
 .more {
   align-self: center;
 }
+.btn--danger {
+  background: var(--coral);
+}
+.prints img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .lab *,

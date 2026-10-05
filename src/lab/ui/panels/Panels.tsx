@@ -57,6 +57,21 @@ function ListField({ id, label, value, sep, onCommit }: { id: string; label: str
   );
 }
 
+/** 한 번 누르면 묻고, 한 번 더 누르면 실행해요 (브라우저 확인 창 대신) */
+function ConfirmButton({ label, ask, onConfirm }: { label: string; ask: string; onConfirm: () => void }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <button className={`btn ${armed ? "btn--danger" : "btn--light"}`} onClick={() => (armed ? (setArmed(false), onConfirm()) : setArmed(true))}>
+      {armed ? ask : label}
+    </button>
+  );
+}
+
 // ---------- 초안 고르기 (공방·서재·선착장이 같은 초안을 봐요) ----------
 function useDraft(onlyWaiting = false) {
   const drafts = useLab((s) => s.drafts);
@@ -308,25 +323,35 @@ export function CardEditorPanel() {
 }
 
 // ---------- 인쇄기 ----------
-async function printDraft(d: Draft, only?: number) {
+async function printDraft(d: Draft, only?: number): Promise<File[]> {
   const st = useLab.getState();
-  if (st.busy) return;
+  if (st.busy) return [];
   st.setBusy("print");
   try {
     const files = await draftImages(d, { handle: st.brand.handle, series: st.brand.series }, only);
     const how = await saveFiles(files);
-    if (how !== "cancelled") st.say(how === "shared" ? `카드 ${files.length}장을 보냈어요.` : `카드 ${files.length}장을 1080×1350 이미지로 저장했어요.`);
+    if (how !== "cancelled") st.say(how === "shared" ? `카드 ${files.length}장을 보냈어요.` : `카드 ${files.length}장을 1080×1350 이미지로 뽑았어요.`);
+    return files;
   } catch {
     st.say("이미지를 만들지 못했어요. 다시 한번 눌러 주세요.");
+    return [];
   } finally {
     useLab.getState().setBusy(null);
   }
+}
+
+/** 방금 뽑은 카드 이미지. 내려받기가 막힌 곳에서도 길게 누르거나 오른쪽 클릭으로 저장할 수 있어요 */
+function usePrints() {
+  const [prints, setPrints] = useState<{ name: string; url: string }[]>([]);
+  useEffect(() => () => prints.forEach((p) => URL.revokeObjectURL(p.url)), [prints]);
+  return [prints, (files: File[]) => files.length && setPrints(files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })))] as const;
 }
 
 export function PrinterPanel() {
   const { draft, pool } = useDraft();
   const brand = useLab((s) => s.brand);
   const busy = useLab((s) => s.busy);
+  const [prints, showPrints] = usePrints();
   if (!draft) return <NoDraft />;
   const look = { total: draft.deck.cards.length, handle: brand.handle, series: brand.series, deep: draft.type === "심층" };
   return (
@@ -337,14 +362,25 @@ export function PrinterPanel() {
       </div>
       <div className="print__grid">
         {draft.deck.cards.map((c, i) => (
-          <button key={i} className="print__item" disabled={!!busy} onClick={() => printDraft(draft, i)} aria-label={`${i + 1}번째 카드 이미지로 저장`}>
+          <button key={i} className="print__item" disabled={!!busy} onClick={() => printDraft(draft, i).then(showPrints)} aria-label={`${i + 1}번째 카드 이미지로 저장`}>
             <CardPreview card={c} page={i + 1} {...look} />
           </button>
         ))}
       </div>
+      {prints.length > 0 && (
+        <section className="prints" aria-label="방금 뽑은 카드">
+          <h3 className="pn__h">방금 뽑은 카드 {prints.length}장</h3>
+          <p className="muted">파일이 저장되지 않았다면 이미지를 길게 누르거나 오른쪽 클릭해서 저장하세요.</p>
+          <div className="print__grid">
+            {prints.map((p) => (
+              <img key={p.url} src={p.url} alt={p.name} width={1080} height={1350} />
+            ))}
+          </div>
+        </section>
+      )}
       <footer className="pn__foot">
         <span className="muted">1080×1350 PNG로 뽑아요. 휴대폰에서는 공유 창이 열려 사진에 저장할 수 있어요.</span>
-        <button className="btn btn--primary" disabled={!!busy} onClick={() => printDraft(draft)}>
+        <button className="btn btn--primary" disabled={!!busy} onClick={() => printDraft(draft).then(showPrints)}>
           {busy === "print" ? "인쇄하는 중…" : `${draft.deck.cards.length}장 모두 인쇄하기`}
         </button>
       </footer>
@@ -729,17 +765,14 @@ function Backup() {
         백업 불러오기
       </button>
       <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => onFile(e.target.files?.[0])} />
-      <button
-        className="btn btn--light"
-        onClick={() => {
-          if (confirm("초안·소식·설정을 모두 지우고 예시 데이터로 되돌릴까요? 되돌릴 수 없어요.")) {
-            resetData();
-            say("예시 데이터로 되돌렸어요.");
-          }
+      <ConfirmButton
+        label="처음 상태로"
+        ask="모두 지울까요? 한 번 더 누르세요"
+        onConfirm={() => {
+          resetData();
+          say("초안·소식·설정을 지우고 예시 데이터로 되돌렸어요.");
         }}
-      >
-        처음 상태로
-      </button>
+      />
     </div>
   );
 }
@@ -847,17 +880,14 @@ export function DraftsPanel() {
               >
                 열기
               </button>
-              <button
-                className="btn btn--light"
-                onClick={() => {
-                  if (confirm(`'${draftLabel(d)}' 초안을 지울까요?`)) {
-                    removeDraft(d.id);
-                    say("초안을 지웠어요.");
-                  }
+              <ConfirmButton
+                label="지우기"
+                ask="정말 지울까요?"
+                onConfirm={() => {
+                  removeDraft(d.id);
+                  say(`'${draftLabel(d)}' 초안을 지웠어요.`);
                 }}
-              >
-                지우기
-              </button>
+              />
             </div>
           </li>
         ))}
