@@ -760,6 +760,7 @@ export function BrandPanel() {
   const brand = useLab((s) => s.brand);
   const setBrand = useLab((s) => s.setBrand);
   const server = useServerStatus();
+  const cloud = useLab((s) => s.cloud);
   const set = (k: keyof typeof brand, v: string) => setBrand({ ...brand, [k]: v });
   const ai = server === "loading" ? "확인하는 중…" : !server ? "서버 없이 열려 있어요 (뼈대 초안으로 대신 써요)" : server.groq ? `연결됨 (${server.model})` : "키가 없어요 (.env.local에 GROQ_API_KEY)";
   return (
@@ -795,14 +796,21 @@ export function BrandPanel() {
           <dd className="muted">{ai}</dd>
         </div>
         <div>
-          <dt>자동 초안</dt>
-          <dd>매일 오전 10시, 묶음 1개와 심층 1개</dd>
-          <dd className="muted">4단계에서 연결</dd>
+          <dt>자동 회의</dt>
+          <dd>매일 회의 시간에 묶음 1개와 심층 1개</dd>
+          <dd className="muted">GitHub Actions가 소장님 대신 회의해요 (SETUP.md)</dd>
         </div>
         <div>
           <dt>로그인·저장</dt>
-          <dd>지금은 이 브라우저에 저장돼요</dd>
-          <dd className="muted">2단계에서 구글 로그인·Supabase로</dd>
+          <dd>{cloud === "off" ? "이 브라우저에만 저장돼요" : "Supabase에 저장돼요"}</dd>
+          <dd className="muted">
+            {cloud === "off" ? "Supabase 주소를 넣고 배포하면 어디서나 열려요" : cloud === "error" ? "저장에 실패해서 다시 시도하고 있어요" : cloud === "saving" ? "저장하는 중…" : "모두 저장됨"}
+            {cloud !== "off" && (
+              <button className="link-btn" onClick={() => void import("../../cloud/session").then((m) => m.signOut())}>
+                로그아웃
+              </button>
+            )}
+          </dd>
         </div>
       </dl>
       <h3 className="pn__h">데이터</h3>

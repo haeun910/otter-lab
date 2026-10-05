@@ -1,3 +1,4 @@
+import { guard } from "@/src/lab/cloud/guard";
 import type { NewsItem } from "@/src/lab/data/demo";
 import { groqReady, writeWithGroq } from "@/src/lab/gen/groq";
 import type { DraftRequest } from "@/src/lab/gen/prompt";
@@ -7,6 +8,8 @@ export const maxDuration = 60;
 
 // 카드뉴스 공방·블로그 서재: Groq로 초안을 써요. 키가 없으면 501을 돌려주고, 화면이 뼈대 초안으로 대신 만들어요.
 export async function POST(req: Request) {
+  const denied = await guard(req);
+  if (denied) return denied;
   if (!groqReady()) return Response.json({ error: "GROQ_API_KEY가 없어요" }, { status: 501 });
   const body = (await req.json().catch(() => null)) as Partial<DraftRequest> | null;
   const items = (body?.items ?? []).filter((n): n is NewsItem => Boolean(n?.title && n?.link)).slice(0, 8);

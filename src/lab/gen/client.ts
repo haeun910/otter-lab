@@ -3,6 +3,14 @@ import type { Blog, Deck, DraftType, NewsItem } from "../data/demo";
 import type { DraftRequest } from "./prompt";
 import { templateBlog, templateDeck } from "./template";
 
+// 로그인한 배포에서는 서버 API에 로그인 토큰을 같이 보내요 (cloud/sync.ts가 채워 줘요)
+let tokenProvider: (() => Promise<string | null>) | null = null;
+export const setTokenProvider = (fn: typeof tokenProvider) => (tokenProvider = fn);
+async function authHeaders(): Promise<Record<string, string>> {
+  const t = tokenProvider ? await tokenProvider() : null;
+  return t ? { authorization: `Bearer ${t}` } : {};
+}
+
 export interface Written {
   deck: Deck;
   blog: Blog;
@@ -14,7 +22,7 @@ export interface Written {
 export async function writeDraft(r: DraftRequest): Promise<Written> {
   let why: Written["why"] = "offline";
   try {
-    const res = await fetch("/api/draft", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(r) });
+    const res = await fetch("/api/draft", { method: "POST", headers: { "content-type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(r) });
     if (res.ok) {
       const out = (await res.json()) as { deck: Deck; blog: Blog };
       return { deck: out.deck, blog: out.blog, engine: "groq" };
@@ -28,7 +36,7 @@ export async function writeDraft(r: DraftRequest): Promise<Written> {
 
 export async function fetchNews(): Promise<{ items: NewsItem[]; failed: string[]; fetchedAt: number } | null> {
   try {
-    const res = await fetch("/api/news", { cache: "no-store" });
+    const res = await fetch("/api/news", { cache: "no-store", headers: await authHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch {

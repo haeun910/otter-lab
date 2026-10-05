@@ -8,6 +8,13 @@ export interface BrandVoice {
   deepTone: string;
 }
 
+export const DEFAULT_BRAND: BrandVoice = {
+  handle: "@otterlab.ai",
+  series: "오터랩 데일리",
+  tone: "친근한 존댓말, 어려운 용어는 한 번 풀어서",
+  deepTone: "차분하게, 배경과 의미까지 짚어서",
+};
+
 export const DEFAULT_PROMPTS: Record<string, string> = {
   cards:
     "인스타그램 카드뉴스 문구를 써요. 카드 한 장에는 제목 한 줄(20자 안쪽)과 본문 두 줄(한 줄 40자 안쪽)만 넣어요. 숫자·날짜·고유명사는 원문 그대로 쓰고, 원문에 없는 사실은 지어내지 않아요.",

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { BUILDINGS, type RoomObject } from "./data/buildings";
 import { NEWS, SEED_DRAFTS, SEED_POSTS, type Blog, type Card, type Draft, type Meeting, type NewsItem, type Post } from "./data/demo";
-import { DEFAULT_PROMPTS } from "./gen/prompt";
+import { DEFAULT_BRAND, DEFAULT_PROMPTS } from "./gen/prompt";
 import { mergeNews } from "./news/rss";
 
 export type SceneId = "overview" | string; // 본관 전체 또는 방 id
@@ -37,6 +37,7 @@ interface LabState {
   busy: "news" | "draft" | "print" | null; // 시간이 걸리는 일
   phase: Phase;
   writing: string[]; // 지금 초안을 쓰고 있는 직원 (cards, blog)
+  cloud: "off" | "saving" | "saved" | "error"; // Supabase에 저장 상태
 
   // ---- 저장되는 연구소 데이터 ----
   staff: Record<string, StaffEdit>;
@@ -60,6 +61,7 @@ interface LabState {
   setHover: (h: string | null) => void;
   setBusy: (b: LabState["busy"]) => void;
   setPhase: (p: Phase) => void;
+  setCloud: (c: LabState["cloud"]) => void;
   setWriting: (who: string, on: boolean) => void;
   travel: (scene: SceneId) => void;
   setSchedule: (s: LabState["schedule"]) => void;
@@ -92,12 +94,7 @@ const defaultStaff = (): Record<string, StaffEdit> =>
 
 const initialData = () => ({
   staff: defaultStaff(),
-  brand: {
-    handle: "@otterlab.ai",
-    series: "오터랩 데일리",
-    tone: "친근한 존댓말, 어려운 용어는 한 번 풀어서",
-    deepTone: "차분하게, 배경과 의미까지 짚어서",
-  },
+  brand: { ...DEFAULT_BRAND },
   library: NEWS,
   inbox: NEWS.map((n) => n.link),
   lastFetch: null as number | null,
@@ -132,6 +129,7 @@ export const useLab = create<LabState>()(
         busy: null,
         phase: "work",
         writing: [],
+        cloud: "off",
         ...initialData(),
 
         openFocus: (o) => {
@@ -159,6 +157,7 @@ export const useLab = create<LabState>()(
         },
         setBusy: (busy) => set({ busy }),
         setPhase: (phase) => set({ phase }),
+        setCloud: (cloud) => get().cloud !== cloud && set({ cloud }),
         setWriting: (who, on) => set((s) => ({ writing: on ? [...new Set([...s.writing, who])] : s.writing.filter((w) => w !== who) })),
         // 카메라가 그 방으로 날아가요 (본관 전체는 "overview")
         travel: (scene) => set({ scene, focus: null, panelOpen: false, mapOpen: false, hint: false }),

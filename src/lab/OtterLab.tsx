@@ -9,6 +9,7 @@ import Campus from "./three/Campus";
 import { Projector } from "./three/labels";
 import LabelLayer from "./ui/LabelLayer";
 import Hud from "./ui/Hud";
+import LoginGate from "./ui/LoginGate";
 import PanelHost from "./ui/PanelHost";
 import { staffLine } from "./three/Crew";
 import "./lab.css";
@@ -146,6 +147,7 @@ export default function OtterLab() {
       <LabelLayer />
       <Hud />
       <PanelHost />
+      <LoginGate />
     </div>
   );
 }

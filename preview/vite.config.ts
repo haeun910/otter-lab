@@ -7,6 +7,12 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 export default defineConfig({
   root: resolve(__dirname),
   plugins: [react(), viteSingleFile()],
+  // 미리보기 파일은 서버·로그인 없이 돌아가요
+  define: {
+    "process.env.NEXT_PUBLIC_SUPABASE_URL": "undefined",
+    "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY": "undefined",
+    "process.env.NEXT_PUBLIC_LOGIN_GOOGLE": "undefined",
+  },
   resolve: { alias: { "@": resolve(__dirname, "..") } },
   build: { outDir: resolve(__dirname, "dist"), emptyOutDir: true, chunkSizeWarningLimit: 4000 },
 });

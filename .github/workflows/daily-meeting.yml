@@ -1,0 +1,40 @@
+# 매일 자동 회의: 매시간 깨어나서, 회의 시간이 지났고 오늘 회의를 아직 안 했으면 회의를 해요.
+# 회의 시간은 연구소 회의록 칠판에서 바꿀 수 있어요 (한 시간 안쪽으로 맞춰져요).
+# GitHub 예약 실행은 저장소의 기본 브랜치(main)에 이 파일이 있어야 돌아가요.
+name: daily-meeting
+
+on:
+  schedule:
+    - cron: "7 * * * *" # 매시 7분 (정각은 GitHub가 붐벼서 조금 비켜요)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "회의 시간과 상관없이 지금 회의하기"
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-meeting
+  cancel-in-progress: false
+
+jobs:
+  meeting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run daily
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          LAB_URL: ${{ vars.LAB_URL }}
+          FORCE: ${{ inputs.force && '1' || '' }}
