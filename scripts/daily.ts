@@ -3,7 +3,7 @@
 // 실행: npm run daily   (회의 시간과 상관없이 지금 하려면 FORCE=1 npm run daily)
 import { heldToday, jobsFrom, kstDay, kstMinutes, meetingNotes, parseHM, recommend, statsReport, fmtHM } from "../src/lab/agenda";
 import { fromRows, toRows } from "../src/lab/cloud/mapping";
-import { selectRows, upsertRows, type Cloud } from "../src/lab/cloud/rest";
+import { cleanKey, cleanUrl, selectRows, upsertRows, type Cloud } from "../src/lab/cloud/rest";
 import { BUILDINGS } from "../src/lab/data/buildings";
 import type { Draft, Meeting, NewsItem } from "../src/lab/data/demo";
 import { groqNotes, groqReady, writeWithGroq } from "../src/lab/gen/groq";
@@ -128,8 +128,8 @@ async function main() {
     return v;
   };
   const res = await runDaily({
-    supabaseUrl: process.env.SUPABASE_URL || need("NEXT_PUBLIC_SUPABASE_URL"),
-    serviceKey: process.env.SUPABASE_SECRET_KEY || need("SUPABASE_SERVICE_ROLE_KEY"),
+    supabaseUrl: cleanUrl(process.env.SUPABASE_URL || need("NEXT_PUBLIC_SUPABASE_URL")),
+    serviceKey: cleanKey(process.env.SUPABASE_SECRET_KEY || need("SUPABASE_SERVICE_ROLE_KEY")),
     telegramToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChat: process.env.TELEGRAM_CHAT_ID,
     discordWebhook: process.env.DISCORD_WEBHOOK_URL,

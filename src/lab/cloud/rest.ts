@@ -23,6 +23,11 @@ export async function headersFor(c: Cloud): Promise<Record<string, string>> {
   return { apikey: c.key, ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) };
 }
 
+/** 붙여 넣다 섞인 공백·줄바꿈·따옴표를 걷어내요 (키에는 원래 공백이 없어요) */
+export const cleanKey = (v: string | undefined) => (v ?? "").replace(/[\s"'`]+/g, "");
+/** 주소 끝의 / 나 /rest/v1 같은 꼬리도 떼요 */
+export const cleanUrl = (v: string | undefined) => cleanKey(v).replace(/\/(rest\/v1|auth\/v1)?\/?$/, "");
+
 const PAGE = 1000;
 const CHUNK = 400;
 

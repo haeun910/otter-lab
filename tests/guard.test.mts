@@ -11,3 +11,14 @@ assert.equal((await guard(req()))!.status, 401);
 assert.equal((await guard(req("stranger")))!.status, 403);
 assert.equal(await guard(req("owner-token")), null);
 console.log("GUARD OK");
+
+// 붙여 넣다 섞인 줄바꿈·공백·따옴표 (화면에 'Failed to execute fetch: Invalid value'가 뜨던 원인)
+const { cleanKey, cleanUrl } = await import("../src/lab/cloud/rest");
+assert.throws(() => new Headers({ apikey: "sb_publishable_ab\ncd" }));
+assert.equal(cleanKey(' "sb_publishable_ab\r\ncd "\n'), "sb_publishable_abcd");
+assert.equal(cleanUrl(" https://abc.supabase.co/rest/v1/\n"), "https://abc.supabase.co");
+assert.equal(cleanUrl("https://abc.supabase.co/"), "https://abc.supabase.co");
+process.env.NEXT_PUBLIC_SUPABASE_URL = "https://x.supabase.co\n";
+process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_test\n";
+assert.equal(await guard(req("owner-token")), null, "줄바꿈이 섞여도 통과");
+console.log("CLEAN OK");
