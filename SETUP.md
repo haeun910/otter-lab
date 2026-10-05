@@ -96,14 +96,19 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
    | `GROQ_MODEL` | (선택) 모델 이름 |
 
 3. **Deploy**. 끝나면 `https://otter-lab-xxxx.vercel.app` 같은 주소가 나와요. 이 주소를 Supabase의 Site URL·Redirect URLs에 넣어 주세요 (3-5단계).
-4. Vercel은 기본으로 `main` 브랜치를 올려요. 지금 작업은 `1006` 브랜치에 있으니, `main`에 합치거나 Vercel **Settings → Git → Production Branch**를 `1006`으로 바꿔 주세요.
+4. Vercel은 저장소의 **기본 브랜치**를 실제 서비스로 올려요. 5단계 맨 앞의 "기본 브랜치 바꾸기"를 먼저 하거나, Vercel **Settings → Git → Production Branch**를 `1006`으로 바꾼 뒤 **Deployments → ⋯ → Redeploy** 해 주세요.
 
 열어 보면 로그인 화면이 나와요. 소장님 이메일을 넣고 메일로 온 링크를 누르면 연구소가 열려요.
 처음 로그인하면 그 브라우저에 있던 초안·설정이 Supabase로 올라가요.
 
 ## 5. GitHub 자동 회의
 
-저장소 **Settings → Secrets and variables → Actions**에서:
+**먼저 기본 브랜치 바꾸기 (한 번만)**
+GitHub는 저장소의 **기본 브랜치**에 있는 워크플로만 Actions 목록에 보여 주고 예약 실행해요.
+저장소 **Settings → General → Default branch** 오른쪽 ⇄ 버튼 → `1006` → **Update**.
+(그다음 예전 브랜치 `claude/multi-agent-automation-lab-vr8s45`는 **Branches** 화면에서 지워도 돼요.)
+
+그리고 저장소 **Settings → Secrets and variables → Actions**에서:
 
 **Secrets** (New repository secret)
 
@@ -123,10 +128,11 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
 | `LAB_URL` | Vercel 주소 (알림에 링크로 붙어요) |
 | `GROQ_MODEL` | (선택) 모델 이름 |
 
-**바로 시험해 보기:** **Actions** 탭 → **daily-meeting** → **Run workflow** → "회의 시간과 상관없이 지금 회의하기" 체크 → 실행.
+**바로 시험해 보기:** 저장소 위쪽 **Actions** 탭 (처음이면 "I understand my workflows, go ahead and enable them") → 왼쪽 **daily-meeting** → 오른쪽 **Run workflow ▾** → Branch `1006`, "회의 시간과 상관없이 지금 회의하기" 체크 → 초록 **Run workflow**.
+실패(빨간 X)하면 그 실행 → **meeting** → **Run npm run daily**를 펼쳐 마지막 줄을 보면 이유가 적혀 있어요.
 1~2분 뒤 디스코드(또는 텔레그램) 알림이 오고, 연구소를 열면 회의록 칠판과 공방에 새 초안이 있어요.
 
-**매일 자동으로:** GitHub는 예약 실행을 저장소의 **기본 브랜치(main)** 에서만 해요. `1006` 브랜치를 `main`에 합치면 그때부터 매시간 깨어나서, 회의 시간(회의록 칠판에서 정한 시간, 한 시간 안쪽 오차)이 지났고 오늘 회의를 아직 안 했으면 회의를 해요.
+**매일 자동으로:** 기본 브랜치를 `1006`으로 바꿨으면 그때부터 매시간 깨어나서, 회의 시간(회의록 칠판에서 정한 시간, 한 시간 안쪽 오차)이 지났고 오늘 회의를 아직 안 했으면 회의를 해요.
 
 ---
 
