@@ -1,6 +1,8 @@
 // 가짜 Supabase(PostgREST 일부) + 가짜 RSS·Groq·텔레그램
 export const db = new Map<string, { kind: string; id: string; data: unknown }>();
 export const sent: string[] = [];
+export const discord: { title: string; description: string; url?: string }[] = [];
+export const fail = { telegram: false };
 export const calls: string[] = [];
 export let groqCalls = 0;
 export const feedTime = { t: Date.now() };
@@ -46,7 +48,13 @@ export function install() {
         : JSON.stringify({ title: "Groq 블로그", intro: "i", sections: [{ heading: "h", body: "b" }], outro: "o", tags: ["AI"] });
       return json({ choices: [{ message: { content } }] });
     }
+    if (url.startsWith("https://discord.com/api/webhooks/")) {
+      if (!url.includes("wait=true")) return json({ message: "need wait" }, 400);
+      discord.push(JSON.parse(String(init.body)).embeds[0]);
+      return json({ id: "1" });
+    }
     if (url.includes("api.telegram.org")) {
+      if (fail.telegram) return json({ ok: false, description: "chat not found" }, 400);
       sent.push(JSON.parse(String(init.body)).text);
       return json({ ok: true });
     }

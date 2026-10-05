@@ -11,6 +11,7 @@ import { DEFAULT_BRAND, DEFAULT_PROMPTS, type BrandVoice } from "../src/lab/gen/
 import { templateBlog, templateDeck } from "../src/lab/gen/template";
 import { FEEDS } from "../src/lab/news/feeds";
 import { collectNews, mergeNews } from "../src/lab/news/rss";
+import { sendDiscord } from "../src/lab/notify/discord";
 import { sendTelegram } from "../src/lab/notify/telegram";
 
 export interface DailyEnv {
@@ -18,6 +19,7 @@ export interface DailyEnv {
   serviceKey: string;
   telegramToken?: string;
   telegramChat?: string;
+  discordWebhook?: string;
   labUrl?: string;
   force?: boolean;
 }
@@ -100,15 +102,19 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
 
   // 5. 소장님께 알림
   const label = (d: Draft) => d.deck.cards[0]?.title || d.blog.title;
-  const message = [
-    `[오터랩] ${kstDay(now).slice(5).replace("-", "/")} ${fmtHM(kstMinutes(now))} 회의 끝`,
+  const title = `[오터랩] ${kstDay(now).slice(5).replace("-", "/")} ${fmtHM(kstMinutes(now))} 회의 끝`;
+  const lines = [
     made.length ? `루미가 고른 소식으로 초안 ${made.length}개를 썼어요.` : "오늘은 새로 다룰 소식이 없어서 초안을 쓰지 않았어요.",
     ...made.map((d) => `- ${d.type}: ${label(d)}${d.engine === "template" ? " (뼈대)" : ""}`),
     `검토 대기 ${waiting}개. 공방에서 확인하고 우편선으로 보내 주세요.`,
     ...problems.map((p) => `참고: ${p}`),
-    ...(env.labUrl ? [env.labUrl] : []),
-  ].join("\n");
-  if (env.telegramToken && env.telegramChat) await sendTelegram(env.telegramToken, env.telegramChat, message);
+  ];
+  const message = [title, ...lines, ...(env.labUrl ? [env.labUrl] : [])].join("\n");
+  // 알림은 한쪽이 실패해도 다른 쪽은 보내요
+  const fails: string[] = [];
+  if (env.telegramToken && env.telegramChat) await sendTelegram(env.telegramToken, env.telegramChat, message).catch((e) => fails.push(String(e?.message ?? e)));
+  if (env.discordWebhook) await sendDiscord(env.discordWebhook, { title, lines: [...lines, ...(env.labUrl ? [env.labUrl] : [])], url: env.labUrl }).catch((e) => fails.push(String(e?.message ?? e)));
+  if (fails.length) throw new Error(`회의는 끝났지만 알림을 못 보냈어요: ${fails.join(" / ")}`);
   return { ran: true, reason: "회의를 했어요", drafts: made, message };
 }
 
@@ -123,6 +129,7 @@ async function main() {
     serviceKey: need("SUPABASE_SERVICE_ROLE_KEY"),
     telegramToken: process.env.TELEGRAM_BOT_TOKEN,
     telegramChat: process.env.TELEGRAM_CHAT_ID,
+    discordWebhook: process.env.DISCORD_WEBHOOK_URL,
     labUrl: process.env.LAB_URL,
     force: process.env.FORCE === "1" || process.env.FORCE === "true",
   });

@@ -1,6 +1,6 @@
 // 가짜 Supabase·RSS·Groq·텔레그램으로 자동 회의를 처음부터 끝까지 돌려 봐요
 import assert from "node:assert/strict";
-import { db, sent, install, feedTime } from "./fake.ts";
+import { db, sent, discord, fail, install, feedTime } from "./fake.ts";
 import { runDaily } from "../scripts/daily.ts";
 import { diffRows, fromRows, pickCloud, toRows } from "../src/lab/cloud/mapping";
 import { inList } from "../src/lab/cloud/rest";
@@ -60,6 +60,22 @@ assert.ok(r.drafts.flatMap((d) => d.sources).every((l) => !used.has(l)), "어제
 // FORCE는 시간·중복 상관없이
 r = await runDaily({ ...env, force: true }, KST(8, 0, 7));
 assert.equal(r.ran, true);
+
+// 디스코드 웹후크: 임베드로 보내요. 텔레그램이 실패해도 디스코드는 가고, 실행은 실패로 알려요
+fail.telegram = true;
+const before = db.size;
+await assert.rejects(
+  runDaily({ ...env, discordWebhook: "https://discord.com/api/webhooks/1/abc", force: true }, KST(12, 0, 7)),
+  /알림을 못 보냈어요: Telegram 400/,
+);
+assert.ok(db.size > before, "회의 결과는 저장돼요");
+assert.equal(discord.length, 1);
+assert.match(discord[0].title, /\[오터랩\] 10\/07 오후 12:00 회의 끝/);
+assert.match(discord[0].description, /검토 대기 \d+개/);
+assert.equal(discord[0].url, "https://lab.example");
+fail.telegram = false;
+await runDaily({ supabaseUrl: env.supabaseUrl, serviceKey: env.serviceKey, discordWebhook: "https://discord.com/api/webhooks/1/abc", force: true }, KST(13, 0, 7));
+assert.equal(discord.length, 2, "디스코드만 써도 돼요");
 
 // 매핑·비교
 const s0 = { library: NEWS.slice(0, 3), drafts: SEED_DRAFTS, posts: SEED_POSTS, meetings: [], brand: { a: 1 }, staff: {}, schedule: { meetingAt: "10:00" }, inbox: ["x"], lastFetch: null };

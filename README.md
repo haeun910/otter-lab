@@ -12,7 +12,7 @@
 | 3 | Groq로 카드뉴스·블로그 글쓰기 (키가 없으면 뼈대 초안) | 완료 |
 | 4 | 회의실: 회의 시간에 모여 추천 소식·성과·게시 대기를 보고하고 소장이 결정 | 완료 |
 | 5 | Supabase 저장 + 이메일(또는 구글) 로그인, 연구소 주인만 열기 | 완료 (연결은 [SETUP.md](SETUP.md)) |
-| 6 | GitHub Actions 매일 자동 회의(묶음 1 + 심층 1) + 텔레그램 알림 | 완료 (연결은 [SETUP.md](SETUP.md)) |
+| 6 | GitHub Actions 매일 자동 회의(묶음 1 + 심층 1) + 디스코드·텔레그램 알림 | 완료 (연결은 [SETUP.md](SETUP.md)) |
 | 7 | 분위기 다듬기 (덜 장난감 같은 그림체·조명·색감) | 다음 |
 | 8 | 인스타그램 자동 게시, 성과 수치 자동 수집 | 예정 |
 
@@ -98,7 +98,7 @@ src/lab/
   agenda.ts             회의 안건 (시계, 추천 소식, 성과 보고, 회의록)
   company.ts            회의 소집·결정·초안 쓰기 (화면용)
   cloud/                Supabase 저장·동기화, 로그인, API 문지기
-  notify/telegram.ts    텔레그램 알림
+  notify/               디스코드 웹후크·텔레그램 알림
 scripts/daily.ts        매일 자동 회의 (GitHub Actions)
 supabase/schema.sql     데이터베이스 표와 주인만 접근하는 규칙
 tests/                  가짜 서버로 하는 자동 회의·동기화 시험
