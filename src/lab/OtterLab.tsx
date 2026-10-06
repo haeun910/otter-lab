@@ -14,6 +14,8 @@ import PanelHost from "./ui/PanelHost";
 import { staffLine } from "./three/Crew";
 import "./lab.css";
 
+const MOVE_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]);
+
 export default function OtterLab() {
   const scene = useLab((s) => s.scene);
   const wrap = useRef<HTMLDivElement>(null);
@@ -38,23 +40,39 @@ export default function OtterLab() {
       return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
     };
     const down = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (MOVE_KEYS.has(k)) {
+        const st = useLab.getState();
+        if (typing(e) || st.focus || st.mapOpen || e.metaKey || e.ctrlKey || e.altKey) return;
+        e.preventDefault();
+        live.keys.add(k);
+        return;
+      }
       if (typing(e) || e.key !== "Escape") return;
       const st = useLab.getState();
       if (st.mapOpen) st.setMapOpen(false);
       else if (st.focus) st.closeFocus();
       else if (st.scene !== "overview") st.travel("overview");
     };
+    const up = (e: KeyboardEvent) => live.keys.delete(e.key.toLowerCase());
+    const clear = () => live.keys.clear();
     window.addEventListener("keydown", down);
-    return () => window.removeEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", clear);
+    };
   }, []);
 
-  // 바깥에서: 끌어서 돌려보기, 휠·두 손가락으로 확대
+  // 끌어서 좌우로 돌리고 위아래로 기울이기, 휠·두 손가락으로 확대 (사물에 다가가 있을 땐 쉬어요)
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
     const pts = new Map<number, { x: number; y: number }>();
     let pinch = 0;
-    const isOutside = () => useLab.getState().scene === "overview" && !useLab.getState().focus;
+    const isOutside = () => !useLab.getState().focus;
     const down = (e: PointerEvent) => {
       if ((e.target as HTMLElement).tagName !== "CANVAS") return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -67,7 +85,8 @@ export default function OtterLab() {
       const prev = pts.get(e.pointerId);
       if (!prev || !isOutside()) return;
       if (pts.size === 1 && e.buttons) {
-        live.camAzimuth = THREE.MathUtils.clamp(live.camAzimuth - (e.clientX - prev.x) * 0.006, -0.7, 0.7);
+        live.camAzimuth = THREE.MathUtils.clamp(live.camAzimuth - (e.clientX - prev.x) * 0.006, -0.9, 0.9);
+        live.camTilt = THREE.MathUtils.clamp(live.camTilt + (e.clientY - prev.y) * 0.005, -0.6, 0.5);
       } else if (pts.size === 2) {
         pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
         const [a, b] = [...pts.values()];

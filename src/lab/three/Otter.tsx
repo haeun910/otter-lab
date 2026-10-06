@@ -16,8 +16,8 @@ export function toyMat(color: string, rough = 0.6) {
 }
 
 // ---------- 털 ----------
-const FUR = new THREE.Color("#5b3f2c"); // 등·머리: 짙은 밤색
-const PALE = new THREE.Color("#b49c80"); // 목·볼: 옅은 베이지
+const FUR = new THREE.Color("#6a4a33"); // 등·머리: 짙은 밤색
+const PALE = new THREE.Color("#d2bd9f"); // 목·볼: 옅은 베이지
 const DARK = new THREE.Color("#3e2a1d"); // 발·꼬리 끝
 
 /** 껍질(shell) 여러 겹을 한 덩어리로 합쳐요. aShell: 0(피부) ~ 1(털 끝) */
@@ -109,12 +109,12 @@ function useOtterGeometry() {
       [0.25, 0.12],
       [0.3, 0.26],
       [0.305, 0.42],
-      [0.28, 0.6],
-      [0.24, 0.78],
-      [0.19, 0.95],
-      [0.16, 1.08],
-      [0.15, 1.2],
-      [0.0, 1.24],
+      [0.29, 0.6],
+      [0.25, 0.78],
+      [0.2, 0.93],
+      [0.17, 1.04],
+      [0.16, 1.14],
+      [0.0, 1.18],
     ].map(([r, y]) => new THREE.Vector2(r, y));
     const torso = new THREE.LatheGeometry(profile, 40);
     torso.scale(1, 1, 0.86);
@@ -127,7 +127,7 @@ function useOtterGeometry() {
 
     // 머리: 넓고 납작한 두개골
     const skull = new THREE.SphereGeometry(1, 36, 24);
-    skull.scale(0.215, 0.165, 0.2);
+    skull.scale(0.235, 0.195, 0.215);
     paint(skull, (p, n) => {
       const cheek = THREE.MathUtils.smoothstep(-p.y, 0.02, 0.12) * THREE.MathUtils.smoothstep(n.z, -0.2, 0.5);
       return FUR.clone().lerp(PALE, cheek);
@@ -135,12 +135,12 @@ function useOtterGeometry() {
 
     // 주둥이와 아래턱 (짧은 털)
     const muzzle = new THREE.SphereGeometry(1, 28, 18);
-    muzzle.scale(0.125, 0.08, 0.1);
+    muzzle.scale(0.115, 0.075, 0.08);
     paint(muzzle, (p) => FUR.clone().lerp(PALE, THREE.MathUtils.smoothstep(-p.y, -0.02, 0.06) * 0.85 + 0.15));
     const pads = mergeGeometries(
       [-1, 1].map((s) => {
-        const g = new THREE.SphereGeometry(0.044, 18, 12);
-        g.translate(0.043 * s, 0, 0);
+        const g = new THREE.SphereGeometry(0.04, 18, 12);
+        g.translate(0.039 * s, 0, 0);
         return g;
       }),
     )!;
@@ -176,10 +176,12 @@ function useOtterGeometry() {
     arm.translate(0, -0.14, 0);
     paint(arm, (p) => FUR.clone().lerp(DARK, THREE.MathUtils.smoothstep(-p.y, 0.12, 0.26) * 0.7));
 
-    const ear = new THREE.SphereGeometry(0.035, 14, 10);
+    const ear = new THREE.SphereGeometry(0.046, 14, 10);
     paint(ear, () => FUR.clone().multiplyScalar(0.85));
 
     return {
+      // 그림자는 털 없는 맨 모양으로만 드리워요 (훨씬 가벼워요)
+      shadow: { torso, skull, tail, arm },
       ear: furry(ear, 6),
       torso: furry(torso, SHELLS),
       skull: furry(skull, SHELLS),
@@ -192,8 +194,11 @@ function useOtterGeometry() {
 }
 
 // 얼굴의 단단한 부분
-const NOSE = new THREE.MeshPhysicalMaterial({ color: "#1d1512", roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+const NOSE = new THREE.MeshPhysicalMaterial({ color: "#2e1d19", roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 });
 const EYE = new THREE.MeshPhysicalMaterial({ color: "#0c0807", roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02 });
+/** 화면에는 안 보이고 그림자만 드리우는 재질 */
+const SHADOW_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const GLINT = new THREE.MeshBasicMaterial({ color: "#ffffff" });
 const PAW = new THREE.MeshStandardMaterial({ color: "#3a281c", roughness: 0.7 });
 const WHISKER = new THREE.LineBasicMaterial({ color: "#efe9df", transparent: true, opacity: 0.75 });
 
@@ -220,9 +225,9 @@ function HeadGear({ gear }: { gear: Gear }) {
   switch (gear) {
     case "beretBag":
       return (
-        <group position={[0.03, 0.15, -0.02]} rotation={[0.1, 0, -0.3]}>
+        <group position={[0.04, 0.185, -0.02]} rotation={[0.1, 0, -0.3]}>
           <mesh castShadow material={fabricMat("#8e2f2b", 3)} scale={[1, 0.3, 1]}>
-            <sphereGeometry args={[0.19, 28, 16]} />
+            <sphereGeometry args={[0.2, 28, 16]} />
           </mesh>
           <mesh position={[0, 0.06, 0]} material={fabricMat("#7a2724", 3)}>
             <cylinderGeometry args={[0.008, 0.008, 0.03, 6]} />
@@ -233,34 +238,34 @@ function HeadGear({ gear }: { gear: Gear }) {
       return (
         <group>
           <mesh position={[0, 0.02, -0.02]} material={pbr("#1c1d1f", 0.4)}>
-            <torusGeometry args={[0.215, 0.012, 8, 32, Math.PI]} />
+            <torusGeometry args={[0.245, 0.012, 8, 32, Math.PI]} />
           </mesh>
           {[-1, 1].map((s) => (
-            <mesh key={s} position={[0.215 * s, 0, -0.02]} rotation={[0, 0, Math.PI / 2]} castShadow material={pbr("#1c1d1f", 0.45)}>
+            <mesh key={s} position={[0.245 * s, 0, -0.02]} rotation={[0, 0, Math.PI / 2]} castShadow material={pbr("#1c1d1f", 0.45)}>
               <cylinderGeometry args={[0.06, 0.06, 0.04, 20]} />
             </mesh>
           ))}
-          <mesh position={[0.17, -0.09, 0.09]} rotation={[0.9, 0.5, 0]} material={pbr("#1c1d1f", 0.4)}>
+          <mesh position={[0.2, -0.09, 0.1]} rotation={[0.9, 0.5, 0]} material={pbr("#1c1d1f", 0.4)}>
             <cylinderGeometry args={[0.006, 0.006, 0.18, 6]} />
           </mesh>
         </group>
       );
     case "glasses":
       return (
-        <group position={[0, 0.03, 0.195]}>
+        <group position={[0, 0.022, 0.228]}>
           {[-1, 1].map((s) => (
-            <mesh key={s} position={[0.075 * s, 0, 0]} material={metal("#a68a55", 0.3)}>
-              <torusGeometry args={[0.045, 0.005, 8, 24]} />
+            <mesh key={s} position={[0.1 * s, 0, 0]} material={metal("#a68a55", 0.3)}>
+              <torusGeometry args={[0.048, 0.005, 8, 24]} />
             </mesh>
           ))}
           <mesh material={metal("#a68a55", 0.3)}>
-            <boxGeometry args={[0.06, 0.005, 0.005]} />
+            <boxGeometry args={[0.05, 0.005, 0.005]} />
           </mesh>
         </group>
       );
     case "captainHat":
       return (
-        <group position={[0, 0.14, -0.01]} rotation={[0.08, 0, 0]}>
+        <group position={[0, 0.18, -0.01]} rotation={[0.08, 0, 0]}>
           <mesh castShadow material={fabricMat("#f3f2ee", 2)}>
             <cylinderGeometry args={[0.15, 0.16, 0.1, 28]} />
           </mesh>
@@ -467,50 +472,69 @@ export default function Otter({
 
       {/* 꼬리 (몸통 뿌리에서 땅으로) */}
       <group ref={tail} position={[0, 0, 0]}>
-        <mesh geometry={geo.tail} material={fur} castShadow receiveShadow />
+        <mesh geometry={geo.tail} material={fur} receiveShadow />
+        <mesh geometry={geo.shadow.tail} material={SHADOW_ONLY} castShadow />
       </group>
 
       <group ref={body}>
-        <mesh geometry={geo.torso} material={fur} castShadow receiveShadow />
+        <mesh geometry={geo.torso} material={fur} receiveShadow />
+        <mesh geometry={geo.shadow.torso} material={SHADOW_ONLY} castShadow />
 
         {/* 앞다리 (어깨 기준으로 돌아가요) */}
         <group ref={armL} position={[-0.2, 0.86, 0.1]}>
-          <mesh geometry={geo.arm} material={fur} castShadow />
+          <mesh geometry={geo.arm} material={fur} />
+          <mesh geometry={geo.shadow.arm} material={SHADOW_ONLY} castShadow />
           <mesh position={[0, -0.29, 0.01]} scale={[1, 0.7, 1.15]} material={PAW}>
             <sphereGeometry args={[0.048, 12, 8]} />
           </mesh>
         </group>
         <group ref={armR} position={[0.2, 0.86, 0.1]}>
-          <mesh geometry={geo.arm} material={fur} castShadow />
+          <mesh geometry={geo.arm} material={fur} />
+          <mesh geometry={geo.shadow.arm} material={SHADOW_ONLY} castShadow />
           <mesh position={[0, -0.29, 0.01]} scale={[1, 0.7, 1.15]} material={PAW}>
             <sphereGeometry args={[0.048, 12, 8]} />
           </mesh>
         </group>
 
         {/* 머리 */}
-        <group ref={head} position={[0, 1.3, 0.04]}>
-          <mesh geometry={geo.skull} material={fur} castShadow />
+        <group ref={head} position={[0, 1.26, 0.04]} scale={1.12}>
+          <mesh geometry={geo.skull} material={fur} />
+          <mesh geometry={geo.shadow.skull} material={SHADOW_ONLY} castShadow />
           {/* 작은 귀 */}
           {[-1, 1].map((s) => (
-            <mesh key={s} geometry={geo.ear} position={[0.175 * s, 0.075, -0.06]} rotation={[0, 0, -0.5 * s]} scale={[1, 0.8, 0.45]} material={fineFur} />
+            <mesh key={s} geometry={geo.ear} position={[0.19 * s, 0.1, -0.05]} rotation={[0, 0, -0.55 * s]} scale={[1, 0.85, 0.5]} material={fineFur} />
           ))}
-          <group position={[0, -0.045, 0.14]}>
-            <mesh geometry={geo.muzzle} material={fineFur} castShadow />
-            <group position={[0, -0.012, 0.072]}>
+          <group position={[0, -0.06, 0.155]}>
+            <mesh geometry={geo.muzzle} material={fineFur} />
+            <group position={[0, -0.012, 0.058]}>
               <mesh geometry={geo.pads} material={fineFur} />
               <Whiskers />
             </group>
             {/* 코 */}
-            <mesh position={[0, 0.026, 0.092]} scale={[1.3, 0.72, 0.7]} material={NOSE}>
-              <sphereGeometry args={[0.026, 16, 10]} />
+            <mesh position={[0, 0.024, 0.078]} scale={[1.35, 0.78, 0.75]} material={NOSE}>
+              <sphereGeometry args={[0.022, 16, 10]} />
             </mesh>
-          </group>
-          {/* 눈: 작고 까맣고 반짝 */}
-          <group ref={eyes} position={[0, 0.035, 0]}>
+            {/* 작은 입 (ω) */}
             {[-1, 1].map((s) => (
-              <mesh key={s} position={[0.1 * s, 0, 0.178]} material={EYE}>
-                <sphereGeometry args={[0.021, 16, 12]} />
+              <mesh key={s} position={[0.014 * s, -0.022, 0.083]} rotation={[0.2, 0, Math.PI]} material={NOSE}>
+                <torusGeometry args={[0.014, 0.0025, 6, 12, Math.PI]} />
               </mesh>
+            ))}
+          </group>
+          {/* 눈: 동그랗고 까맣고 반짝 (눈빛 점까지) */}
+          <group ref={eyes} position={[0, 0.02, 0]}>
+            {[-1, 1].map((s) => (
+              <group key={s} position={[0.1 * s, 0, 0.19]}>
+                <mesh material={EYE}>
+                  <sphereGeometry args={[0.031, 20, 14]} />
+                </mesh>
+                <mesh position={[0.009, 0.012, 0.026]} material={GLINT}>
+                  <sphereGeometry args={[0.0075, 10, 8]} />
+                </mesh>
+                <mesh position={[-0.008, -0.01, 0.028]} material={GLINT}>
+                  <sphereGeometry args={[0.0035, 8, 6]} />
+                </mesh>
+              </group>
             ))}
           </group>
           <HeadGear gear={gear} />

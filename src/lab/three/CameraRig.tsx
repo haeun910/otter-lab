@@ -41,13 +41,15 @@ export default function CameraRig() {
       const [x, z] = byId(scene).pos;
       w.look.set(x, 0.5, z - 0.1);
       w.elev = 0.9;
-      w.dist = fitDistance(aspect, w.elev, 8.2, 6.6, 2);
+      w.dist = fitDistance(aspect, w.elev, 8.2, 6.6, 2) * live.camZoom;
     } else {
       w.look.copy(CENTER);
       w.elev = 0.98;
       w.dist = fitDistance(aspect, w.elev, SITE.maxX - SITE.minX + 5, SITE.riverZ + 3 - SITE.minZ, 2) * live.camZoom;
     }
-    const az = scene === "overview" ? live.camAzimuth : 0;
+    // 사물에 다가갈 때 말고는, 끌어서 정한 각도를 따라요
+    const az = focus ? 0 : live.camAzimuth;
+    if (!focus) w.elev = THREE.MathUtils.clamp(w.elev + live.camTilt, 0.32, 1.48);
     const k = first.current ? 1 : 1 - Math.pow(focus ? 0.02 : 0.012, dt);
     first.current = false;
     look.current.lerp(w.look, k);

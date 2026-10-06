@@ -85,7 +85,10 @@ interface LabState {
 
 const defaultStaff = (): Record<string, StaffEdit> =>
   Object.fromEntries(
-    BUILDINGS.filter((b) => b.staff).map((b) => [b.id, { title: b.staff!.title, name: b.staff!.name, ...(DEFAULT_PROMPTS[b.id] ? { prompt: DEFAULT_PROMPTS[b.id] } : {}) }]),
+    BUILDINGS.filter((b) => b.staff).map((b) => [
+      b.id,
+      { title: b.staff!.title, name: b.staff!.name, ...(DEFAULT_PROMPTS[b.id] ? { prompt: DEFAULT_PROMPTS[b.id] } : {}) },
+    ]),
   );
 
 const initialData = () => ({
@@ -174,11 +177,12 @@ export const useLab = create<LabState>()(
         removeDraft: (id) =>
           set((s) => {
             const drafts = s.drafts.filter((d) => d.id !== id);
-            return { drafts, current: s.current === id ? drafts[0]?.id ?? null : s.current };
+            return { drafts, current: s.current === id ? (drafts[0]?.id ?? null) : s.current };
           }),
         setCurrent: (current) => set({ current }),
         editCard: (id, index, patch) => patchCards(id, (cards) => cards.map((c, i) => (i === index ? { ...c, ...patch } : c))),
-        addCard: (id, after) => patchCards(id, (cards) => [...cards.slice(0, after + 1), { kind: "body", tag: "", title: "새 카드", body: "" }, ...cards.slice(after + 1)]),
+        addCard: (id, after) =>
+          patchCards(id, (cards) => [...cards.slice(0, after + 1), { kind: "body", tag: "", title: "새 카드", body: "" }, ...cards.slice(after + 1)]),
         removeCard: (id, index) => patchCards(id, (cards) => (cards.length > 2 ? cards.filter((_, i) => i !== index) : cards)),
         moveCard: (id, index, dir) =>
           patchCards(id, (cards) => {
@@ -196,7 +200,10 @@ export const useLab = create<LabState>()(
           const postedAt = Date.now();
           patchDraft(id, (x) => ({ ...x, status: "게시함", postedAt }));
           set((s) => ({
-            posts: [...s.posts, { id: `post-${id}`, draftId: id, postedAt, title: d.deck.cards[0]?.title ?? d.blog.title, type: d.type, likes: 0, saves: 0, reach: 0 }],
+            posts: [
+              ...s.posts,
+              { id: `post-${id}`, draftId: id, postedAt, title: d.deck.cards[0]?.title ?? d.blog.title, type: d.type, likes: 0, saves: 0, reach: 0 },
+            ],
           }));
         },
         editPost: (id, patch) => set((s) => ({ posts: s.posts.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
@@ -228,8 +235,10 @@ export const draftLabel = (d: Draft) => d.deck.cards[0]?.title || d.blog.title |
 
 // 매 프레임 바뀌는 값은 리렌더 없이 공유해요
 export const live = {
-  camAzimuth: 0, // 본관 전체를 볼 때 카메라 회전
+  camAzimuth: 0, // 카메라 좌우 회전 (끌어서)
+  camTilt: 0, // 카메라 위아래 기울기 (끌어서). +면 더 위에서 내려다봐요
   camZoom: 1,
+  keys: new Set<string>(), // 지금 누르고 있는 이동 키 (WASD·방향키)
   seated: 0, // 회의실 자리에 앉은 직원 수
   atDesk: 0, // 자기 자리로 돌아간 직원 수
 };

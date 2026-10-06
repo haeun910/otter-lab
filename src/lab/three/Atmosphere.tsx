@@ -49,7 +49,7 @@ export const SUN_DIR = new THREE.Vector3(-0.55, 0.72, 0.42).normalize();
 
 export function Sky() {
   return (
-    <Environment resolution={256} frames={1} environmentIntensity={0.6}>
+    <Environment resolution={256} frames={1} environmentIntensity={0.6} background>
       <SkyDome />
       {/* 해: 반사에 맺히는 밝은 점 */}
       <Lightformer form="circle" intensity={30} color="#fff1d6" position={SUN_DIR.clone().multiplyScalar(60).toArray()} scale={8} target={[0, 0, 0]} />

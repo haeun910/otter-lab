@@ -40,7 +40,9 @@ function Clock() {
   return (
     <div className="clock">
       <span className="clock__now">{fmtHM(kstMinutes(now))}</span>
-      <span className="clock__next">{phase === "meeting" || phase === "gathering" ? "회의 중" : held ? "오늘 회의 끝" : `${fmtHM(parseHM(meetingAt))} 회의`}</span>
+      <span className="clock__next">
+        {phase === "meeting" || phase === "gathering" ? "회의 중" : held ? "오늘 회의 끝" : `${fmtHM(parseHM(meetingAt))} 회의`}
+      </span>
       {phase === "work" && (
         <button className={`chip ${due ? "chip--alert" : ""}`} onClick={() => startMeeting("manual")}>
           {due && <span className="dot" aria-hidden="true" />}
@@ -96,7 +98,7 @@ export default function Hud() {
               본관 전체 보기
             </button>
           ) : hint ? (
-            <p className="hint">방을 누르면 다가가서 볼 수 있어요. 연구원을 누르면 말을 걸어요.</p>
+            <p className="hint">방을 누르면 다가가서 봐요. 화면을 끌면 돌리고 기울일 수 있고, WASD·방향키로 내 수달을 움직여요.</p>
           ) : null}
         </div>
       )}
@@ -129,7 +131,9 @@ export default function Hud() {
                   <button className={`place ${scene === b.id ? "place--here" : ""}`} onClick={() => travel(b.id)}>
                     <span className="place__swatch" style={{ background: b.roof }} />
                     <span className="place__name">{b.name}</span>
-                    <span className="place__who">{staff[b.id] ? `${staff[b.id].title} ${staff[b.id].name}` : b.id === "office" ? "나의 방" : "다 같이 모이는 곳"}</span>
+                    <span className="place__who">
+                      {staff[b.id] ? `${staff[b.id].title} ${staff[b.id].name}` : b.id === "office" ? "나의 방" : "다 같이 모이는 곳"}
+                    </span>
                     <span className="place__what">{b.objects.map((o) => o.label).join(", ")}</span>
                   </button>
                 </li>

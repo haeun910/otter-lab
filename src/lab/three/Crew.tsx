@@ -88,34 +88,107 @@ function homeOf(m: Member, nav: NavGrid): { x: number; z: number; heading: numbe
   const [x, z] = toWorld(b, DESK[m.room] ?? [0, 0]);
   // 하던 일을 하면서도 얼굴은 방 앞쪽(카메라 쪽)으로 비스듬히
   const target = toWorld(b, b.objects[0]?.pos ?? [0, 0]);
-  const heading = m.id === "me" ? 0 : Math.atan2(target[0] - x, target[1] + 3 - z);
+  const heading = m.id === "me" ? 0 : Math.atan2(target[0] - x, target[1] + 6 - z);
   return { x, z, heading };
 }
 
 const SPEED = 2.6;
+const WALK = 3.2; // 내가 키보드로 움직일 때 속도
+const KEYMAP: Record<string, [number, number]> = {
+  w: [0, 1],
+  arrowup: [0, 1],
+  s: [0, -1],
+  arrowdown: [0, -1],
+  a: [-1, 0],
+  arrowleft: [-1, 0],
+  d: [1, 0],
+  arrowright: [1, 0],
+};
+const fwd = new THREE.Vector3();
+
+/** 이 자리가 들어 있는 방 (복도면 null) */
+function roomAt(x: number, z: number) {
+  return BUILDINGS.find((b) => Math.abs(x - b.pos[0]) < ROOM.w / 2 && Math.abs(z - b.pos[1]) < ROOM.d / 2)?.id ?? null;
+}
 
 function CrewOtter({ m, nav, index }: { m: Member; nav: NavGrid; index: number }) {
   const home = useMemo(() => homeOf(m, nav), [m, nav]);
   const seat = useMemo(() => seatOf(m.seat), [m.seat]);
   const grp = useRef<THREE.Group>(null);
   const anim = useRef<OtterAnim>("work");
-  const st = useRef({ x: home.x, z: home.z, heading: home.heading, path: [] as [number, number][], goal: "home" as "home" | "seat", wait: 0, waveUntil: 0 });
+  const st = useRef({
+    x: home.x,
+    z: home.z,
+    heading: home.heading,
+    path: [] as [number, number][],
+    goal: "home" as "home" | "seat",
+    wait: 0,
+    waveUntil: 0,
+    free: false, // 내가 키보드로 옮겨 놓은 자리에 그대로 있어요
+  });
   const key = `staff-${m.id}`;
 
-  useFrame(({ clock }, rawDt) => {
+  useFrame(({ clock, camera }, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const s = st.current;
     const phase = useLab.getState().phase;
+    // 나(소장)는 WASD·방향키로 걸어 다녀요 (회의 중에는 자리에 앉아 있어요)
+    let walked = false;
+    if (m.id === "me" && phase === "work" && live.keys.size) {
+      let ix = 0;
+      let iz = 0;
+      live.keys.forEach((k) => {
+        const v = KEYMAP[k];
+        if (v) {
+          ix += v[0];
+          iz += v[1];
+        }
+      });
+      if (ix || iz) {
+        // 화면 기준 방향: W는 화면 위쪽(안쪽)으로
+        camera.getWorldDirection(fwd);
+        fwd.y = 0;
+        fwd.normalize();
+        const rx = -fwd.z;
+        const rz = fwd.x;
+        let mx = fwd.x * iz + rx * ix;
+        let mz = fwd.z * iz + rz * ix;
+        const len = Math.hypot(mx, mz) || 1;
+        mx = (mx / len) * WALK * dt;
+        mz = (mz / len) * WALK * dt;
+        // 막히면 벽을 따라 미끄러지듯 (갇힌 자리에서는 어느 쪽으로든 빠져나와요)
+        const stuck = !nav.isFree(s.x, s.z);
+        if (stuck || nav.isFree(s.x + mx, s.z + mz)) {
+          s.x += mx;
+          s.z += mz;
+        } else if (nav.isFree(s.x + mx, s.z)) s.x += mx;
+        else if (nav.isFree(s.x, s.z + mz)) s.z += mz;
+        let turn = Math.atan2(mx, mz) - s.heading;
+        turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+        s.heading += turn * Math.min(1, dt * 12);
+        s.path = [];
+        s.wait = 0;
+        s.free = true;
+        walked = true;
+        // 다른 방으로 들어가면 카메라도 그 방으로 따라가요
+        const ui = useLab.getState();
+        const room = roomAt(s.x, s.z);
+        if (ui.scene !== "overview" && room && room !== ui.scene && !ui.focus) ui.travel(room);
+      }
+    }
     const goal = phase === "gathering" || phase === "meeting" ? "seat" : "home";
     if (goal !== s.goal) {
       s.goal = goal;
+      s.free = false;
       const t = goal === "seat" ? seat : home;
       // 길찾기는 빈 칸까지만 가니까, 마지막엔 정확한 자리로 한 걸음 더
       s.path = [...nav.findPath([s.x, s.z], [t.x, t.z]), [t.x, t.z]];
       s.wait = index * 0.35; // 한 명씩 차례로 일어나요
     }
     const target = s.goal === "seat" ? seat : home;
-    if (s.wait > 0) {
+    if (walked) {
+      // 이번 프레임은 키보드로 움직였어요
+    } else if (s.wait > 0) {
       s.wait -= dt;
     } else if (s.path.length) {
       const [tx, tz] = s.path[0];
@@ -135,15 +208,16 @@ function CrewOtter({ m, nav, index }: { m: Member; nav: NavGrid; index: number }
         turn = Math.atan2(Math.sin(turn), Math.cos(turn));
         s.heading += turn * Math.min(1, dt * 10);
       }
-    } else {
+    } else if (!s.free) {
       let turn = target.heading - s.heading;
       turn = Math.atan2(Math.sin(turn), Math.cos(turn));
       s.heading += turn * Math.min(1, dt * 6);
     }
-    const moving = s.wait <= 0 && s.path.length > 0;
+    const moving = walked || (s.wait <= 0 && s.path.length > 0);
     if (s.waveUntil < 0) s.waveUntil = clock.elapsedTime + 2;
     const writing = useLab.getState().writing.includes(m.id);
-    anim.current = clock.elapsedTime < s.waveUntil ? "wave" : moving ? "walk" : s.goal === "seat" ? "idle" : m.id === "me" && !writing ? "idle" : "work";
+    anim.current =
+      clock.elapsedTime < s.waveUntil ? "wave" : moving ? "walk" : s.goal === "seat" || s.free ? "idle" : m.id === "me" && !writing ? "idle" : "work";
     if (grp.current) {
       grp.current.position.set(s.x, 0, s.z);
       grp.current.rotation.y = s.heading;
