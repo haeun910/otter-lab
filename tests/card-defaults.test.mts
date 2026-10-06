@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+const memory = new Map<string,string>();
+(globalThis as any).localStorage = {getItem:(k:string)=>memory.get(k)??null,setItem:(k:string,v:string)=>memory.set(k,v),removeItem:(k:string)=>memory.delete(k)};
+const { useLab } = await import('../src/lab/store.ts');
+const { DEFAULT_BRAND, writingOf } = await import('../src/lab/gen/prompt.ts');
+const drafts = useLab.getState().drafts;
+memory.set('otter-lab',JSON.stringify({version:1,state:{brand:{...DEFAULT_BRAND,writing:{deepCards:4}},drafts}}));
+await useLab.persist.rehydrate();
+assert.equal(writingOf(useLab.getState().brand).deepCards,5);
+assert.deepEqual(useLab.getState().drafts,drafts,'Migration preserves existing card content and counts');
+assert.equal(JSON.parse(memory.get('otter-lab')!).version,2);
+memory.set('otter-lab',JSON.stringify({version:1,state:{brand:{...DEFAULT_BRAND,writing:{deepCards:6}},drafts}}));
+await useLab.persist.rehydrate();
+assert.equal(writingOf(useLab.getState().brand).deepCards,6,'Keep an explicitly customized count');
+console.log('CARD DEFAULTS OK: migrate former default to seven total, preserve drafts and custom counts');

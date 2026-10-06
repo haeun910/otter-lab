@@ -1,4 +1,5 @@
 // AI가 돌려준 JSON을 카드·블로그 모양으로 다듬어요. 빠진 곳은 뼈대 초안으로 채워요.
+import { isCardTemplate } from "../data/cardTemplates";
 import type { Blog, Card, Deck } from "../data/demo";
 
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : fallback);
@@ -24,7 +25,8 @@ export function normalizeDeck(raw: unknown, fallback: Deck): Deck {
     .map((c, i, all): Card => {
       const kind = c.kind === "cover" || c.kind === "body" || c.kind === "outro" ? c.kind : i === 0 ? "cover" : i === all.length - 1 ? "outro" : "body";
       const tag = str(c.tag);
-      return { kind, title: str(c.title), body: str(c.body).replace(/\\n/g, "\n"), ...(kind === "body" && tag ? { tag } : {}) };
+      const sections = list(c.sections).map((v) => (v ?? {}) as Record<string, unknown>).map((v) => ({ heading: str(v.heading), body: str(v.body).replace(/\\n/g, "\n") })).filter((v) => v.heading && v.body).slice(0, 2);
+      return { kind, title: str(c.title), body: str(c.body).replace(/\\n/g, "\n"), ...(kind === "body" && tag ? { tag } : {}), ...(sections.length ? { sections } : {}), ...(isCardTemplate(c.template) ? { template: c.template } : {}) };
     })
     .filter((c) => c.title || c.body);
   const ok = cards.length >= 3 && cards[0].kind === "cover";

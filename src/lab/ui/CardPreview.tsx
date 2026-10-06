@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { chooseCardTemplate } from "../data/cardTemplates";
 import type { Card } from "../data/demo";
 import { designOf, type CardDesign } from "../gen/prompt";
 import { CARD_W, cardHeight, drawCard, prepare } from "../render/cardImage";
@@ -12,6 +13,7 @@ import { useLab } from "../store";
 export default function CardPreview({ card, page, total, deep, design: override }: { card: Card; page: number; total: number; deep?: boolean; design?: CardDesign; handle?: string; series?: string }) {
   const brand = useLab((s) => s.brand);
   const design = override ?? designOf(brand);
+  const [error, setError] = useState("");
   const ref = useRef<HTMLCanvasElement>(null);
   const H = cardHeight(design);
   const key = JSON.stringify([card, page, total, deep, design, brand.handle, brand.series]);
@@ -24,15 +26,15 @@ export default function CardPreview({ card, page, total, deep, design: override 
       const ctx = cv?.getContext("2d");
       if (!cv || !ctx || !alive) return;
       ctx.setTransform(cv.width / CARD_W, 0, 0, cv.width / CARD_W, 0, 0);
-      drawCard(ctx, card, look);
+      try { drawCard(ctx, card, look); setError(""); } catch (e) { setError(e instanceof Error ? e.message : "미리보기를 만들지 못했어요."); }
     };
     draw(); // 글꼴이 오기 전에도 바로 한 번
-    prepare(`${card.title}${card.body}${card.tag ?? ""}${brand.handle}${brand.series}`, design).then(draw);
+    prepare(`${card.title}${card.body}${card.tag ?? ""}${brand.handle}${brand.series}${(card.sections ?? []).map((s) => s.heading + s.body).join("")}`, design, chooseCardTemplate(card, page)).then(draw).catch((e) => { if (alive) setError(e.message); });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  return <canvas ref={ref} className="cardnews-canvas" width={540} height={Math.round((540 * H) / CARD_W)} aria-label={`${page}번째 카드: ${card.title}`} role="img" />;
+  return <div>{error && <p role="alert">{error}</p>}<canvas ref={ref} className="cardnews-canvas" width={540} height={Math.round((540 * H) / CARD_W)} aria-label={`${page}번째 카드: ${card.title}`} role="img" /></div>;
 }

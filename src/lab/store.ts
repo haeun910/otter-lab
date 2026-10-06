@@ -216,7 +216,15 @@ export const useLab = create<LabState>()(
     },
     {
       name: "otter-lab",
-      version: 1,
+      version: 2,
+      migrate: (saved, version) => {
+        const data = saved as Partial<SavedData>;
+        // Update the former default without changing other saved card counts or existing drafts.
+        if (version < 2 && data.brand?.writing?.deepCards === 4) {
+          return { ...data, brand: { ...data.brand, writing: { ...data.brand.writing, deepCards: 5 } } };
+        }
+        return data;
+      },
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => Object.fromEntries(SAVED_KEYS.map((k) => [k, s[k]])) as SavedData,
       // 새로 생긴 기본값(예: 지시문)은 저장된 값 아래에 깔아 둬요

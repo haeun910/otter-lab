@@ -1,6 +1,7 @@
 // AI 없이 소식 제목·요약만으로 뼈대 초안을 만들어요.
 // Groq 키가 없거나 연결이 안 될 때 대신 쓰고, 소장님이 다듬는 걸 전제로 해요.
 import type { Blog, Card, Deck, DraftType, NewsItem } from "../data/demo";
+import { finalizeDeck } from "./editorial";
 import { deepTags, writingOf, type BrandVoice } from "./prompt";
 
 /** 문장 단위로 자르고, 글자 수를 넘지 않게 묶어요 */
@@ -54,7 +55,7 @@ function bodyLines(n: NewsItem): string {
   return ls.length ? ls.join("\n") : "자세한 내용은 원문에서 확인해 보세요.";
 }
 
-const BASE_TAGS = ["#AI뉴스", "#인공지능", "#오터랩", "#OtterLab", "#IT뉴스", "#카드뉴스", "#테크뉴스"];
+const BASE_TAGS: string[] = [];
 const sourcesLine = (items: NewsItem[]) => `출처: ${[...new Set(items.map((n) => n.source))].join(", ")}`;
 
 export function templateDeck(type: DraftType, items: NewsItem[], brand: BrandVoice): Deck {
@@ -76,22 +77,22 @@ export function templateDeck(type: DraftType, items: NewsItem[], brand: BrandVoi
       ...body,
       { kind: "outro", title: "한 줄 정리", body: `- ${short[0]}\n- 자세한 내용은 ${n.source} 원문에서` },
     ];
-    return {
+    return finalizeDeck({
       cards,
       caption: `${tidyTitle(n.title)}\n\n${ss.slice(0, 2).join(" ") || "카드로 정리해 봤어요."}\n\n${sourcesLine(items)}`,
-      hashtags: [...BASE_TAGS, `#${n.source.replace(/\s+/g, "")}`],
-    };
+      hashtags: BASE_TAGS,
+    }, items);
   }
   const cards: Card[] = [
     { kind: "cover", title: `오늘의 AI·IT 소식 ${items.length}가지`, body: `${short.slice(0, 2).join(", ")}까지, 수달이 골라 왔어요` },
     ...items.map((n, i): Card => ({ kind: "body", tag: n.category, title: short[i], body: bodyLines(n) })),
     { kind: "outro", title: "오늘의 정리", body: short.map((t) => `- ${t}`).join("\n") },
   ];
-  return {
+  return finalizeDeck({
     cards,
     caption: `오늘 강을 타고 떠내려온 소식 ${items.length}가지를 골라 왔어요.\n\n${items.map((n) => `- ${tidyTitle(n.title)}`).join("\n")}\n\n${sourcesLine(items)}`,
-    hashtags: [...BASE_TAGS, `#${brand.series.replace(/\s+/g, "")}`],
-  };
+    hashtags: BASE_TAGS,
+  }, items);
 }
 
 export function templateBlog(type: DraftType, items: NewsItem[], now = Date.now(), brand?: BrandVoice): Blog {

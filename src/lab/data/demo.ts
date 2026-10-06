@@ -4,6 +4,7 @@
 // 새 소식 받기·초안 만들기를 하면 진짜 데이터가 이 위에 쌓여요.
 import { classify, normCategory, type Category } from "../news/category";
 import snapshot from "./news-snapshot.json";
+import type { CardTemplate } from "./cardTemplates";
 import type { DraftRequest } from "../gen/prompt";
 
 export interface GenerationPart {
@@ -35,6 +36,8 @@ export interface Card {
   tag?: string;
   title: string;
   body: string;
+  sections?: { heading: string; body: string }[];
+  template?: CardTemplate;
 }
 
 export type DraftType = "묶음" | "심층";

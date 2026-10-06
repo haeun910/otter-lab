@@ -1,11 +1,24 @@
 // 카드뉴스 그리기. 화면 미리보기(CardPreview)와 저장하는 PNG가 같은 함수로 그려서 생김새가 똑같아요.
-// 테마 3가지: 오터 파스텔 · 뉴스룸 · 매거진. 포인트 색·제목 글꼴·크기(세로/정사각)는 소장 책상에서 골라요.
+// 숲속 소식지의 역할별 일러스트 10종. 모든 카드는 1080×1080으로 저장해요.
 import type { Card, Draft } from "../data/demo";
 import { designOf, type BrandVoice, type CardDesign, type TitleFont } from "../gen/prompt";
+import mainArt from "../assets/card-main.webp";
+import reporterArt from "../assets/card-reporter.webp";
+import explainerArt from "../assets/card-explainer.webp";
+import summaryArt from "../assets/card-summary.webp";
+import researcherArt from "../assets/card-researcher.webp";
+import productArt from "../assets/card-product.webp";
+import analystArt from "../assets/card-analyst.webp";
+import contextArt from "../assets/card-context.webp";
+import checklistArt from "../assets/card-checklist.webp";
+import cautionArt from "../assets/card-caution.webp";
+import dialogueArt from "../assets/card-dialogue.webp";
+import { chooseCardTemplate, type CardTemplate } from "../data/cardTemplates";
+import { CARD_HANDLE } from "../gen/editorial";
 import { otterSvgMarkup } from "../ui/otterSvg";
 
 export const CARD_W = 1080;
-export const cardHeight = (d: CardDesign) => (d.size === "square" ? 1080 : 1350);
+export const cardHeight = (_d: CardDesign) => 1080;
 
 export interface CardLook {
   page: number;
@@ -17,7 +30,7 @@ export interface CardLook {
 }
 
 export const THEMES: { id: CardDesign["theme"]; name: string; about: string }[] = [
-  { id: "pastel", name: "오터 파스텔", about: "물방울 무늬 바탕에 종이 카드, 수달 창문" },
+  { id: "pastel", name: "숲속 소식지", about: "정보 중심의 정사각형 소식지와 작은 수달 일러스트" },
   { id: "newsroom", name: "뉴스룸", about: "흰 바탕에 검은 머리띠, 큰 제목의 신문 느낌" },
   { id: "magazine", name: "매거진", about: "포인트 색 바탕에 큰 숫자, 잡지 표지 느낌" },
 ];
@@ -27,7 +40,7 @@ export const FONTS: { id: TitleFont; name: string }[] = [
   { id: "blackhan", name: "검은고딕 (강하게)" },
   { id: "gowun", name: "고운돋움 (부드럽게)" },
 ];
-export const ACCENTS = ["#8CCBFF", "#7FE3C6", "#FF9A8A", "#FFD36E", "#B9A6F2", "#2A2E5E", "#111111", "#E8505B"];
+export const ACCENTS = ["#56734C", "#8CCBFF", "#7FE3C6", "#FF9A8A", "#FFD36E", "#B9A6F2", "#2A2E5E", "#111111", "#E8505B"];
 
 const FAMILY: Record<TitleFont, string> = {
   jua: `"Jua", "Gowun Dodum", sans-serif`,
@@ -148,131 +161,105 @@ function loadMascot() {
   return mascotLoad;
 }
 
+const ART = {
+  main: mainArt, reporter: reporterArt, explainer: explainerArt, courier: summaryArt,
+  researcher: researcherArt, product: productArt, analyst: analystArt, context: contextArt,
+  checklist: checklistArt, caution: cautionArt, dialogue: dialogueArt,
+};
+const illustrations: Partial<Record<CardTemplate, HTMLImageElement>> = {};
+const illustrationLoads: Partial<Record<CardTemplate, Promise<void>>> = {};
+function loadIllustration(template: CardTemplate) {
+  illustrationLoads[template] ??= new Promise<void>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => { illustrations[template] = img; resolve(); };
+    img.onerror = () => { delete illustrationLoads[template]; reject(new Error("카드 일러스트를 불러오지 못했어요. 다시 시도해 주세요.")); };
+    const asset = ART[template];
+    img.src = typeof asset === "string" ? asset : asset.src;
+  });
+  return illustrationLoads[template]!;
+}
+
 /** 이 카드를 그리는 데 필요한 글꼴과 마스코트를 불러와요 */
-export async function prepare(text: string, design: CardDesign) {
+export async function prepare(text: string, design: CardDesign, template: CardTemplate = "reporter") {
   const all = `${text}${CTA_TEXT}정리오늘의 한 가지0123456789/`;
   const loads: Promise<unknown>[] = [loadMascot()];
   if ("fonts" in document) {
     loads.push(document.fonts.load(`${WEIGHT[design.font]} 40px ${FAMILY[design.font].split(",")[0]}`, all));
     loads.push(document.fonts.load(`40px "Gowun Dodum"`, all), document.fonts.load(`40px "Jua"`, all));
-    if (design.theme !== "pastel") loads.push(document.fonts.load(`400 40px "Noto Sans KR"`, all), document.fonts.load(`700 40px "Noto Sans KR"`, all));
+    loads.push(document.fonts.load(`400 40px "Noto Sans KR"`, all), document.fonts.load(`700 40px "Noto Sans KR"`, all));
     if (design.theme === "magazine") loads.push(document.fonts.load(`40px "Black Han Sans"`, "0123456789"));
   }
   await Promise.all(loads.map((p) => p.catch(() => undefined)));
+  if (design.theme === "pastel" || template === "main") await loadIllustration(template);
 }
 
 function drawMascot(ctx: Ctx, cx: number, cy: number, size: number) {
   if (mascot) ctx.drawImage(mascot, cx - size / 2, cy - size / 2, size, size);
 }
 
+function drawCoverMascot(ctx: Ctx, look: CardLook, cx: number, cy: number, size: number) {
+  const main = illustrations.main;
+  if (look.page === 1) {
+    if (main) ctx.drawImage(main, cx - size / 2, cy - size / 2, size, size);
+  } else drawMascot(ctx, cx, cy, size);
+}
+
 // ---------- 테마 1: 오터 파스텔 ----------
 function pastel(ctx: Ctx, card: Card, look: CardLook, H: number) {
-  const W = CARD_W;
-  const d = look.design;
-  const PAD = W * 0.05;
-  const U = (W - PAD * 2) / 100;
-  const vs = H / 1350;
-  const INK = "#2a2e5e";
-  const accent = d.accent;
-  ctx.fillStyle = tint(accent, 0.8);
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#ffffff";
-  for (let y = 20; y < H; y += 40)
-    for (let x = 20; x < W; x += 40) {
-      ctx.beginPath();
-      ctx.arc(x, y, 4.4, 0, Math.PI * 2);
-      ctx.fill();
+  const X = 64, width = 952, ink = "#28382d", accent = shade(look.design.accent, 0.25);
+  ctx.fillStyle = "#fbf8ee"; ctx.fillRect(0, 0, CARD_W, H);
+  ctx.strokeStyle = "#d5dccb"; ctx.lineWidth = 2; ctx.strokeRect(28, 28, 1024, 1024);
+  ctx.textBaseline = "middle"; ctx.font = `700 27px ${BODY_SANS}`; ctx.fillStyle = accent;
+  ctx.fillText(card.kind === "cover" ? "오터랩 · 오늘의 소식" : card.kind === "outro" ? "핵심 정리" : card.tag || "소식 자세히 보기", X, 88);
+  ctx.fillStyle = "#d5dccb"; ctx.fillRect(X, 119, width, 2);
+  ctx.fillStyle = ink;
+  const title = fitTitle(ctx, card.title, FAMILY[look.design.font], WEIGHT[look.design.font], card.kind === "cover" ? 84 : 72, width, 3);
+  let y = lines(ctx, title.ls, X, 153, title.size, 1.22) + 32;
+  const start = y;
+  const blocks = [{ heading: "", body: card.body }, ...(card.sections ?? [])];
+  let chosen = 0;
+  // Reserve the lower-right corner for illustration; shrink text only within readable bounds.
+  for (let size = 40; size >= 32; size -= 2) {
+    y = start; ctx.font = `400 ${size}px ${BODY_SANS}`;
+    for (const block of blocks) {
+      if (block.heading) y += 54;
+      const w = block.heading || y > 470 ? 520 : width;
+      const ls = wrap(ctx, block.body, w);
+      // A wide paragraph crossing into the illustration area is measured narrowly instead.
+      const actual = !block.heading && y + ls.length * size * 1.5 > 570 ? wrap(ctx, block.body, 520) : ls;
+      y += actual.length * size * 1.5 + 28;
     }
-  const x0 = PAD;
-  const y0 = PAD;
-  const w = W - PAD * 2;
-  const h = H - PAD * 2;
-  const bw = 0.6 * U;
-  const r = 6 * U;
-  ctx.fillStyle = INK;
-  rrect(ctx, x0, y0 + 1.4 * U, w, h, r);
-  ctx.fill();
-  box(ctx, x0, y0, w, h, r, "#ffffff", bw, INK);
-  ctx.save();
-  rrect(ctx, x0 + bw, y0 + bw, w - bw * 2, h - bw * 2, r - bw);
-  ctx.clip();
-
-  const cx = x0 + bw + 7 * U;
-  const cw = w - bw * 2 - 14 * U;
-  let y = y0 + bw + 7 * U;
-  // 윗줄: 알약, 꼬리표, 계정
-  ctx.font = `${3.2 * U}px ${FAMILY.jua}`;
-  const label = topLabel(card, look);
-  const pbw = 0.4 * U;
-  const ph = 3.2 * U * 1.2 + 1.2 * U + pbw * 2;
-  const pw = ctx.measureText(label).width + 5.2 * U + pbw * 2;
-  const mid = y + ph / 2;
-  box(ctx, cx, y, pw, ph, ph / 2, card.kind === "body" ? tint(accent, 0.85) : accent, pbw, INK);
-  ctx.fillStyle = card.kind === "body" ? INK : onColor(accent) === "#ffffff" ? "#ffffff" : INK;
-  ctx.textBaseline = "middle";
-  ctx.fillText(label, cx + pbw + 2.6 * U, mid + 1);
-  ctx.font = `${3 * U}px ${BODY_SOFT}`;
-  ctx.fillStyle = "#626891";
-  const handleW = ctx.measureText(look.handle).width;
-  if (card.kind === "body" && card.tag) ctx.fillText(wrap(ctx, card.tag, Math.max(0, cw - pw - handleW - 4 * U))[0] ?? "", cx + pw + 2 * U, mid);
-  ctx.textAlign = "right";
-  ctx.fillText(look.handle, cx + cw, mid);
-  ctx.textAlign = "left";
-  y += ph;
-
-  const cover = card.kind === "cover";
-  y += (cover ? 14 : 8) * U * vs;
-  ctx.fillStyle = INK;
-  const t = fitTitle(ctx, card.title, FAMILY[d.font], WEIGHT[d.font], (cover ? 10 : 7.6) * U, cw, cover ? 4 : 3);
-  y = lines(ctx, t.ls, cx, y, t.size, 1.25);
-  if (cover) {
-    const s = 4 * U;
-    ctx.font = `${s}px ${BODY_SOFT}`;
-    ctx.fillStyle = "#626891";
-    lines(ctx, wrap(ctx, card.body, cw * 0.62), cx, y + 4 * U, s, 1.55);
-  } else {
-    const s = 4.2 * U;
-    const outro = card.kind === "outro";
-    const indent = outro ? 5 * U : 0;
-    y += 5 * U * vs;
-    ctx.font = `${s}px ${BODY_SOFT}`;
-    for (const text of bodyLines(card)) {
-      if (outro) {
-        const dd = 2.4 * U;
-        ctx.fillStyle = INK;
-        ctx.beginPath();
-        ctx.arc(cx + dd / 2, y + 1.9 * U + dd / 2, dd / 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = tint(accent, 0.2);
-        ctx.beginPath();
-        ctx.arc(cx + dd / 2, y + 1.9 * U + dd / 2, dd / 2 - 0.4 * U, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.fillStyle = INK;
-      y = lines(ctx, wrap(ctx, text, cw * 0.88 - indent), cx + indent, y, s, 1.6) + 2.4 * U;
+    if (y <= 972) { chosen = size; break; }
+  }
+  if (!chosen) throw new Error(`${look.page}번째 카드의 내용이 길어요. 제목·본문을 줄이거나 카드를 나눠 주세요.`);
+  y = start;
+  for (const block of blocks) {
+    if (block.heading) {
+      ctx.font = `700 32px ${BODY_SANS}`; ctx.fillStyle = accent;
+      const heading = wrap(ctx, block.heading, 520);
+      if (heading.length > 1) throw new Error(`${look.page}번째 카드의 소제목을 짧게 다듬어 주세요.`);
+      lines(ctx, heading, X, y, 32, 1.3); y += 54;
     }
+    ctx.font = `400 ${chosen}px ${BODY_SANS}`; ctx.fillStyle = ink;
+    let w = block.heading || y > 470 ? 520 : width;
+    let ls = wrap(ctx, block.body, w);
+    if (!block.heading && y + ls.length * chosen * 1.5 > 570) { w = 520; ls = wrap(ctx, block.body, w); }
+    y = lines(ctx, ls, X, y, chosen, 1.5) + 28;
   }
-  // 수달 창문
-  const mw = (cover ? 34 : 22) * U;
-  const mh = (cover ? 40 : 26) * U * Math.max(0.8, vs);
-  const mx = x0 + w - bw - 5 * U - mw;
-  const my = y0 + h - bw - mh;
-  box(ctx, mx, my, mw, mh, [mw / 2, mw / 2, 0, 0], accent, 0.5 * U, INK, true);
-  drawMascot(ctx, mx + mw / 2, my + mh / 2, mw * 0.74);
-  if (card.kind === "outro") {
-    const s = 3.6 * U;
-    const cbw = 0.4 * U;
-    ctx.font = `${s}px ${FAMILY.jua}`;
-    const ls = wrap(ctx, CTA_TEXT, (w - bw * 2) * 0.56 - 6.8 * U - cbw * 2);
-    const tw = Math.max(...ls.map((l) => ctx.measureText(l).width));
-    const bh = ls.length * s * 1.3 + 4.8 * U + cbw * 2;
-    const bx = x0 + bw + 7 * U;
-    const by = y0 + h - bw - 7 * U - bh;
-    box(ctx, bx, by, tw + 6.8 * U + cbw * 2, bh, 4 * U, tint(accent, 0.88), cbw, INK);
-    ctx.fillStyle = INK;
-    lines(ctx, ls, bx + cbw + 3.4 * U, by + cbw + 2.4 * U, s, 1.3);
+  const art = illustrations[chooseCardTemplate(card, look.page)];
+  if (art) ctx.drawImage(art, 603, 550, 425, 425);
+}
+
+function footer(ctx: Ctx, look: CardLook) {
+  ctx.fillStyle = "#fbf8ee"; ctx.fillRect(30, 985, 1020, 64);
+  ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillStyle = "#56734c";
+  ctx.font = `500 27px ${BODY_SANS}`;
+  ctx.fillText(String(look.page).padStart(2, "0"), 64, 1020);
+  // Small vector paw follows the page number, then the fixed account handle.
+  for (const [x, y, rx, ry] of [[131,1024,11,8],[117,1013,4,5],[126,1007,4,5],[137,1007,4,5],[146,1013,4,5]]) {
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
   }
-  ctx.restore();
+  ctx.fillText(CARD_HANDLE, 163, 1020);
 }
 
 // ---------- 테마 2: 뉴스룸 ----------
@@ -324,7 +311,7 @@ function newsroom(ctx: Ctx, card: Card, look: CardLook, H: number) {
     lines(ctx, subLs, X, y, 42, 1.5);
     ctx.globalAlpha = 1;
     // 위쪽 큰 수달
-    drawMascot(ctx, W - 230, 330 * (H / 1350), 300);
+    drawCoverMascot(ctx, look, W - 230, 330 * (H / 1350), 300);
   } else {
     let y = band + 12 + 90 * (H / 1350);
     if (card.kind === "body" && card.tag) {
@@ -401,7 +388,7 @@ function magazine(ctx: Ctx, card: Card, look: CardLook, H: number) {
     ctx.beginPath();
     ctx.arc(W - r - 40, H - r - 60, r, 0, Math.PI * 2);
     ctx.fill();
-    drawMascot(ctx, W - r - 40, H - r - 50, r * 1.5);
+    drawCoverMascot(ctx, look, W - r - 40, H - r - 50, r * 1.5);
     ctx.font = `500 32px ${BODY_SANS}`;
     ctx.fillStyle = fg;
     ctx.fillText(look.handle, X, H - 80);
@@ -462,11 +449,12 @@ const DRAW = { pastel, newsroom, magazine };
 export function drawCard(ctx: Ctx, card: Card, look: CardLook) {
   const H = cardHeight(look.design);
   ctx.clearRect(0, 0, CARD_W, H);
-  (DRAW[look.design.theme] ?? pastel)(ctx, card, look, H);
+  (DRAW[look.design.theme] ?? pastel)(ctx, look.page === 1 ? { ...card, kind: "cover" } : card, look, H);
+  footer(ctx, look);
 }
 
 export async function renderCard(card: Card, look: CardLook): Promise<HTMLCanvasElement> {
-  await prepare(`${card.title}${card.body}${card.tag ?? ""}${look.handle}${look.series}`, look.design);
+  await prepare(`${card.title}${card.body}${card.tag ?? ""}${look.handle}${look.series}${(card.sections ?? []).map((s) => s.heading + s.body).join("")}`, look.design, chooseCardTemplate(card, look.page));
   const cv = document.createElement("canvas");
   cv.width = CARD_W;
   cv.height = cardHeight(look.design);

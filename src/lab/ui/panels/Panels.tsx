@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MAIN_COVER_TEMPLATE, CARD_TEMPLATES, chooseCardTemplate, isCardTemplate } from "../../data/cardTemplates";
 import { BUILDINGS } from "../../data/buildings";
 import type { Draft, DraftType, NewsItem } from "../../data/demo";
 import { quotas, writeJob, retryDraftPart } from "../../company";
@@ -7,6 +8,7 @@ import { CATEGORIES, CATEGORY_INFO } from "../../news/category";
 import { aiFailText, fetchNews, fetchStatus, remoteLLM } from "../../gen/client";
 import { blogLength, rewriteDeck, rewriteSection } from "../../gen/pipeline";
 import { LENGTHS, blogTarget, designOf, writingOf, type CardDesign, type DraftRequest, type WritingPlan } from "../../gen/prompt";
+import { captionWithSources, finalizeDeck, selectHashtags } from "../../gen/editorial";
 import { DEFAULT_PROMPTS } from "../../gen/prompt";
 import { ACCENTS, FONTS, THEMES, draftImages, saveFiles } from "../../render/cardImage";
 import { draftLabel, pickCurrent, useLab, type SavedData } from "../../store";
@@ -142,7 +144,7 @@ function BasketFoot() {
   return <section className="generation-form" aria-label="카드뉴스 생성 요청">
     <div className="pn__foot"><span className="muted">{items.length ? `${items.length}개 소식 선택 · ${type} 카드뉴스` : "소식 1개는 심층, 2~6개는 묶음 카드뉴스"}</span><div className="row"><button className="btn btn--light" disabled={!items.length || !!st.busy} onClick={() => { st.clearBasket(); setReview(false); }}>선택 비우기</button><button className="btn btn--primary" disabled={!valid || !!st.busy} onClick={() => { setReview(!review); setError(""); }}>{review ? "요청 접기" : "카드뉴스 만들기"}</button></div></div>
     {review && <div className="generation-form__review">
-      <h3>모모에게 보낼 요청 확인</h3><ul>{items.map((n) => <li key={n.link}>{n.title} <small>· {n.source}</small></li>)}</ul>
+      <h3>모모에게 보낼 요청 확인</h3><p className="muted">기본 7장 · 표지 1장 + 설명 5장 + 정리 1장. 묶음은 선택한 소식 수에 맞춰 구성해요.</p><ul>{items.map((n) => <li key={n.link}>{n.title} <small>· {n.source}</small></li>)}</ul>
       <div className="form2"><label className="field"><span>만들 결과</span><select value={target} onChange={(e) => setTarget(e.target.value as "cards" | "both")}><option value="cards">카드뉴스만 만들기</option><option value="both">카드뉴스 + 블로그</option></select></label>
       {type === "심층" ? <label className="field"><span>카드 장수 (표지·정리 포함)</span><select value={bodyCount} onChange={(e) => setBodyCount(Number(e.target.value))}>{[3,4,5,6].map((n) => <option key={n} value={n}>{n + 2}장 · 본문 {n}장</option>)}</select></label> : <p className="muted">총 {total}장 · 표지 1 + 소식 {items.length} + 정리 1</p>}
       <label className="field"><span>말투</span><input value={tone} placeholder={type === "심층" ? st.brand.deepTone : st.brand.tone} onChange={(e) => setTone(e.target.value)} /></label></div>
@@ -337,6 +339,7 @@ export function CardEditorPanel() {
       <div className="pn__bar">
         <DraftPicker pool={pool} draft={draft} />
         <span className="muted">카드 {cards.length}장</span>
+        <button className="btn btn--light" onClick={() => useLab.getState().openFocus(BUILDINGS.find((b) => b.id === "cards")!.objects.find((o) => o.panel === "printer")!)}>PNG 저장 · 인쇄기</button>
       </div>
       <GenerationStatus draft={draft} part="cards" />
       <fieldset className="generation-edit" disabled={draft.generation?.cards.status === "running" && useLab.getState().busy === "draft"}>
@@ -373,6 +376,12 @@ export function CardEditorPanel() {
           </div>
         </div>
         <div className="edit__fields">
+          {i === 0 ? <label className="field"><span>첫 페이지 일러스트</span><select value={MAIN_COVER_TEMPLATE.id} disabled><option value={MAIN_COVER_TEMPLATE.id}>{MAIN_COVER_TEMPLATE.name}</option></select></label> : <label className="field"><span>일러스트 템플릿 · 10종</span>
+            <select value={card.template === MAIN_COVER_TEMPLATE.id ? "auto" : card.template ?? "auto"} onChange={(e) => editCard(id, i, { template: isCardTemplate(e.target.value) ? e.target.value : undefined })}>
+              <option value="auto">자동 · {CARD_TEMPLATES.find((t) => t.id === chooseCardTemplate({ ...card, template: undefined }, i + 1))?.name}</option>
+              {CARD_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </label>}
           {card.kind === "body" && (
             <label className="field">
               <span>꼬리표</span>
@@ -387,16 +396,20 @@ export function CardEditorPanel() {
             <span>{card.kind === "outro" ? "정리 (줄마다 하나)" : "내용"}</span>
             <textarea id={`body-${id}-${i}`} rows={4} value={card.body} onChange={(e) => editCard(id, i, { body: e.target.value })} />
           </label>
+          {card.sections?.map((section, index) => <div key={index}>
+            <label className="field"><span>설명 {index + 1} · 소제목</span><input value={section.heading} onChange={(e) => editCard(id, i, { sections: card.sections!.map((s, j) => j === index ? { ...s, heading: e.target.value } : s) })} /></label>
+            <label className="field"><span>설명 {index + 1} · 내용</span><textarea rows={3} value={section.body} onChange={(e) => editCard(id, i, { sections: card.sections!.map((s, j) => j === index ? { ...s, body: e.target.value } : s) })} /></label>
+          </div>)}
           <label className="field">
-            <span>캡션</span>
-            <textarea id={`cap-${id}`} rows={5} value={draft.deck.caption} onChange={(e) => editDeck(id, { caption: e.target.value })} />
+            <span>캡션 · 요약 + 고정 인사 + 원문 출처</span>
+            <textarea id={`cap-${id}`} rows={8} onBlur={() => editDeck(id, { caption: captionWithSources(draft.deck.caption, requestFor(draft).items) })} value={draft.deck.caption} onChange={(e) => editDeck(id, { caption: e.target.value })} />
           </label>
           <ListField
             id={`hash-${id}`}
-            label="해시태그 (띄어쓰기로 구분)"
+            label="해시태그 5개 (띄어쓰기로 구분)"
             value={draft.deck.hashtags}
             sep=" "
-            onCommit={(v) => editDeck(id, { hashtags: v.map((t) => t.replace(/^#*/, "#")) })}
+            onCommit={(v) => editDeck(id, { hashtags: selectHashtags(v, requestFor(draft).items) })}
           />
           <RewriteBox
             id={`rw-deck-${id}`}
@@ -426,8 +439,8 @@ async function printDraft(d: Draft, only?: number): Promise<File[]> {
     const size = designOf(st.brand).size === "square" ? "1080×1080" : "1080×1350";
     if (how !== "cancelled") st.say(how === "shared" ? `카드 ${files.length}장을 보냈어요.` : `카드 ${files.length}장을 ${size} 이미지로 뽑았어요.`);
     return files;
-  } catch {
-    st.say("이미지를 만들지 못했어요. 다시 한번 눌러 주세요.");
+  } catch (e) {
+    st.say(e instanceof Error ? e.message : "이미지를 만들지 못했어요. 다시 한번 눌러 주세요.");
     return [];
   } finally {
     useLab.getState().setBusy(null);
@@ -630,7 +643,8 @@ export function MailboatPanel() {
   }, [draft?.id]);
   if (!draft) return <NoDraft text="게시를 기다리는 초안이 없어요. 수신소에서 새 초안을 만들어 보세요." />;
   const d = draft;
-  const caption = `${d.deck.caption}\n\n${d.deck.hashtags.join(" ")}`;
+  const deck = finalizeDeck(d.deck, requestFor(d).items);
+  const caption = `${deck.caption}\n\n${deck.hashtags.join(" ")}`;
   const look = { total: d.deck.cards.length, handle: brand.handle, series: brand.series, deep: d.type === "심층" };
 
   // 인스타그램 앱으로 넘길 짐: 카드 이미지 + 캡션
@@ -1047,12 +1061,7 @@ function CardDesignSettings() {
         </label>
         <div className="field">
           <span>카드 크기</span>
-          <Seg
-            value={design.size === "square" ? "정사각 1080×1080" : "세로 1080×1350"}
-            options={["세로 1080×1350", "정사각 1080×1080"] as const}
-            onChange={(v) => set({ size: v.startsWith("정사각") ? "square" : "portrait" })}
-            label="카드 크기"
-          />
+          <p>인스타그램 정사각형 · 1080×1080</p>
         </div>
       </div>
     </section>

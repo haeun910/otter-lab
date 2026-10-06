@@ -2,6 +2,7 @@
 // 연구소 화면(/api/ai를 한 번씩)이 같은 순서로 써요. 긴 블로그는 설계도 → 소제목별로 나눠 써서
 // Groq 분당 한도와 Vercel 60초 제한에 덜 걸려요.
 import type { Blog, Deck, GenerationPart } from "../data/demo";
+import { finalizeDeck } from "./editorial";
 import { normalizeBlog, normalizeDeck } from "./normalize";
 import {
   blogMessages,
@@ -26,7 +27,7 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\\n/g, "\
 export const SPLIT_FROM = 2000;
 
 export async function writeDeck(llm: LLM, r: DraftRequest): Promise<Deck> {
-  const raw = await llm(cardsMessages(r), { maxTokens: 2500 });
+  const raw = await llm(cardsMessages(r), { maxTokens: 4000 });
   const cards = (raw as { cards?: unknown[] } | null)?.cards;
   const expected = templateDeck(r.type, r.items, r.brand).cards.length;
   if (!Array.isArray(cards) || cards.length !== expected) throw new Error(`카드 장수가 요청과 달라요 (요청 ${expected}장). 다시 생성해 주세요.`);
@@ -37,7 +38,7 @@ export async function writeDeck(llm: LLM, r: DraftRequest): Promise<Deck> {
   }
   const deck = raw as Deck;
   if (typeof deck.caption !== "string" || !deck.caption.trim() || !Array.isArray(deck.hashtags) || !deck.hashtags.some((t) => typeof t === "string" && t.trim())) throw new Error("AI가 캡션이나 해시태그를 빠뜨렸어요. 다시 생성해 주세요.");
-  return normalizeDeck(raw, templateDeck(r.type, r.items, r.brand));
+  return finalizeDeck(normalizeDeck(raw, templateDeck(r.type, r.items, r.brand)), r.items);
 }
 
 export interface BlogResult {
@@ -95,9 +96,9 @@ export async function writeAll(llm: LLM, r: DraftRequest, onProgress?: (step: st
 }
 
 export async function rewriteDeck(llm: LLM, r: DraftRequest, deck: Deck, instruction: string): Promise<Deck> {
-  const out = normalizeDeck(await llm(rewriteDeckMessages(r, deck, instruction), { maxTokens: 2500 }), deck);
+  const out = normalizeDeck(await llm(rewriteDeckMessages(r, deck, instruction), { maxTokens: 4000 }), deck);
   // 장수가 달라졌으면 원래 모양을 지켜요
-  return out.cards.length === deck.cards.length ? out : { ...out, cards: deck.cards };
+  return finalizeDeck(out.cards.length === deck.cards.length ? out : { ...out, cards: deck.cards }, r.items);
 }
 
 export async function rewriteSection(llm: LLM, r: DraftRequest, blog: Blog, i: number, instruction: string): Promise<Blog["sections"][number]> {
