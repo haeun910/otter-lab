@@ -6,6 +6,7 @@ export const fail = { telegram: false };
 export const calls: string[] = [];
 export let groqCalls = 0;
 export const groqModels: string[] = [];
+export const groqLimit = { remaining: 0 }; // 0보다 크면 그만큼 429를 돌려줘요
 export const feedTime = { t: Date.now(), tag: "" }; // tag를 바꾸면 새 소식이 와요
 
 const rss = (prefix: string, n: number) => `<rss><channel>${Array.from({ length: n }, (_, i) => `<item><title>${prefix} AI 소식 ${i}</title><link>https://ex.com/${prefix}${feedTime.tag}/${i}?a=1,2</link><pubDate>${new Date(feedTime.t - i * 3600_000).toUTCString()}</pubDate><description>${prefix}의 ${i}번째 에이전트 소식이에요. 두 번째 문장이에요.</description></item>`).join("")}</channel></rss>`;
@@ -48,6 +49,10 @@ export function install() {
       groqCalls++;
       const body = JSON.parse(String(init.body));
       groqModels.push(body.model);
+      if (groqLimit.remaining > 0) {
+        groqLimit.remaining--;
+        return new Response(JSON.stringify({ error: { message: "Rate limit reached for model. Please try again in 0.3s." } }), { status: 429, headers: { "content-type": "application/json", "retry-after": "0.3" } });
+      }
       if (!["openai/gpt-oss-120b", "qwen/qwen3.6-27b"].includes(body.model))
         return json({ error: { message: `The model \`${body.model}\` does not exist or you do not have access to it.`, code: "model_not_found" } }, 404);
       const cards = body.messages[0].content.includes("카드뉴스");

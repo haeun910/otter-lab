@@ -1,6 +1,6 @@
 // 가짜 Supabase·RSS·Groq·텔레그램으로 자동 회의를 처음부터 끝까지 돌려 봐요
 import assert from "node:assert/strict";
-import { db, sent, discord, fail, install, feedTime, groqModels } from "./fake.ts";
+import { db, sent, discord, fail, install, feedTime, groqModels, groqLimit } from "./fake.ts";
 import { runDaily } from "../scripts/daily.ts";
 import { diffRows, fromRows, pickCloud, toRows } from "../src/lab/cloud/mapping";
 import { inList } from "../src/lab/cloud/rest";
@@ -102,6 +102,20 @@ r = await runDaily({ ...env, force: true }, KST(10, 7, 9));
 assert.ok(r.drafts.length && r.drafts.every((d) => d.engine === "groq"), "기본 모델로 바꿔서 결국 Groq가 써요");
 assert.match(r.message!, /GROQ_MODEL 'openai\/llama-retired'을 Groq에서 찾지 못해서 기본 모델/);
 delete process.env.GROQ_MODEL;
+
+// 분당 사용량 초과(429): 기다렸다가 다시 써서 결국 Groq 초안이 나와요
+const { retryAfterMs } = await import("../src/lab/gen/groq.ts");
+assert.equal(retryAfterMs(new Response("", { headers: { "retry-after": "7" } }), ""), 7250);
+assert.equal(retryAfterMs(new Response(""), "Please try again in 1m2.5s."), 60250);
+assert.equal(retryAfterMs(new Response(""), "Please try again in 12.3s."), 12550);
+feedTime.t = KST(9, 50, 10);
+feedTime.tag = "-d10";
+groqLimit.remaining = 2;
+const t0 = Date.now();
+r = await runDaily({ ...env, force: true }, KST(10, 7, 10));
+assert.equal(groqLimit.remaining, 0);
+assert.ok(r.drafts.length === 2 && r.drafts.every((d) => d.engine === "groq"), r.message);
+assert.ok(Date.now() - t0 >= 1000, "Groq가 말한 만큼 기다려요");
 
 // 매핑·비교
 const s0 = { library: NEWS.slice(0, 3), drafts: SEED_DRAFTS, posts: SEED_POSTS, meetings: [], brand: { a: 1 }, staff: {}, schedule: { meetingAt: "10:00" }, inbox: ["x"], lastFetch: null };
