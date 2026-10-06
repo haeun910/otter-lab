@@ -66,7 +66,12 @@ function buildNav() {
     { kind: "rect", x: (dx0 - 40) / 2, z: SITE.riverZ, w: dx0 + 40, d: SITE.riverWidth, rot: 0 },
     { kind: "rect", x: (dx1 + 40) / 2, z: SITE.riverZ, w: 40 - dx1, d: SITE.riverWidth, rot: 0 },
   );
-  return new NavGrid({ minX: SITE.minX - 0.6, maxX: dx1 + 0.5, minZ: SITE.minZ - 0.6, maxZ: Math.max(bank, dock.pos[1] + ROOM.d / 2) + 0.2 }, 0.2, blockers, 0.28);
+  return new NavGrid(
+    { minX: SITE.minX - 0.6, maxX: dx1 + 0.5, minZ: SITE.minZ - 0.6, maxZ: Math.max(bank, dock.pos[1] + ROOM.d / 2) + 0.2 },
+    0.2,
+    blockers,
+    0.28,
+  );
 }
 
 const meeting = byId("meeting");
@@ -187,7 +192,9 @@ export function staffLine(id: string): string {
       return waiting ? `게시를 기다리는 초안이 ${waiting}개예요. 확인해 주시면 우편선 띄울게요!` : "지금은 띄울 우편선이 없어요. 쉬는 중!";
     case "stats": {
       const real = st.posts.filter((p) => !p.sample);
-      return real.length ? `게시물 ${real.length}개의 반응을 모으고 있어요. 수치를 적어 주시면 분석할게요.` : "아직 진짜 게시물이 없어서 예시 수치로 연습 중이에요.";
+      return real.length
+        ? `게시물 ${real.length}개의 반응을 모으고 있어요. 수치를 적어 주시면 분석할게요.`
+        : "아직 진짜 게시물이 없어서 예시 수치로 연습 중이에요.";
     }
     case "library":
       return `지금까지 모은 소식이 ${st.library.length.toLocaleString()}건이에요.`;

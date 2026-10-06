@@ -3,19 +3,13 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { COLORS, type Gear } from "../data/buildings";
+import { toon } from "./style";
 
 export type OtterAnim = "idle" | "walk" | "work" | "wave";
 
-// 말랑한 토이 질감: 매트하고 살짝 밝게
-const matCache = new Map<string, THREE.MeshStandardMaterial>();
-export function toyMat(color: string, rough = 0.82) {
-  const key = `${color}:${rough}`;
-  let m = matCache.get(key);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0 });
-    matCache.set(key, m);
-  }
-  return m;
+/** 그림책 같은 툰 재질 (예전 이름 그대로 써요. 두 번째 인자는 이제 쓰지 않아요) */
+export function toyMat(color: string, _rough?: number) {
+  return toon(color);
 }
 
 const BLUSH = new THREE.MeshBasicMaterial({ color: "#FF9FAE", transparent: true, opacity: 0.55 });

@@ -1,26 +1,26 @@
 /* 오터랩: 아침 강가에 놓인 장난감 연구소. 3D 세계 위에 종이·모니터 같은 작업 창이 얹혀요.
    밝은 한 가지 분위기로 고정해요 (3D 장면과 함께 보이도록). */
 :root {
-  --bg: #f2faff;
-  --paper: #ffffff;
-  --paper-warm: #fffaf2;
-  --ink: #2a2e5e;
-  --ink-soft: #626891;
-  --line: #dde3f2;
-  --sky: #8ccbff;
-  --sky-deep: #4fa3e8;
-  --mint: #7fe3c6;
-  --mint-deep: #2fb894;
-  --coral: #ff9a8a;
-  --coral-deep: #ee6b57;
-  --butter: #ffe3a3;
-  --otter: #a8754f;
-  --cream: #fcebd5;
-  --wood: #d9a877;
+  --bg: #e4edd7;
+  --paper: #fffcf5;
+  --paper-warm: #fbf3e4;
+  --ink: #3d3328;
+  --ink-soft: #7d6d5b;
+  --line: #eadfcb;
+  --sky: #8ec5e6;
+  --sky-deep: #5a9cc4;
+  --mint: #93d3b5;
+  --mint-deep: #4fa88a;
+  --coral: #f09a86;
+  --coral-deep: #d9715e;
+  --butter: #f6d98b;
+  --otter: #9c6b45;
+  --cream: #fbf1de;
+  --wood: #c99a6b;
   --cork: #e9c79b;
   --display: "Jua", "Gowun Dodum", system-ui, sans-serif;
   --body: "Gowun Dodum", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --shadow: 0 5px 0 var(--ink);
+  --shadow: 0 4px 0 rgba(61, 51, 40, 0.88);
   color-scheme: light;
 }
 
@@ -77,13 +77,15 @@ body {
   min-height: 44px;
   padding: 0 18px;
   border-radius: 999px;
-  border: 2.5px solid var(--ink);
+  border: 2px solid var(--ink);
   background: var(--paper);
   font-family: var(--display);
   font-size: 16px;
   cursor: pointer;
   white-space: nowrap;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 .btn:disabled {
   opacity: 0.45;
@@ -120,7 +122,7 @@ body {
   color: var(--ink);
 }
 .icon-btn:hover {
-  background: rgba(42, 46, 94, 0.07);
+  background: rgba(61, 51, 40, 0.07);
 }
 
 /* ---------- HUD ---------- */
@@ -144,7 +146,7 @@ body {
   align-items: center;
   gap: 10px;
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: 2px solid var(--ink);
   border-radius: 20px;
   padding: 6px 16px 6px 8px;
   box-shadow: var(--shadow);
@@ -162,6 +164,8 @@ body {
   color: var(--ink-soft);
 }
 .hud-actions {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -174,7 +178,7 @@ body {
   min-height: 44px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 2.5px solid var(--ink);
+  border: 2px solid var(--ink);
   background: var(--butter);
   font-family: var(--display);
   font-size: 15px;
@@ -228,7 +232,9 @@ body {
   text-align: center;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
   z-index: 40;
 }
 .toast--on {
@@ -276,7 +282,7 @@ body {
   flex-direction: column;
   align-items: center;
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: 2px solid var(--ink);
   border-radius: 14px;
   padding: 4px 12px;
   white-space: nowrap;
@@ -335,7 +341,7 @@ body {
   width: max-content;
   max-width: 230px;
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: 2px solid var(--ink);
   border-radius: 18px;
   padding: 8px 14px 10px;
   font-family: var(--body);
@@ -360,8 +366,8 @@ body {
   width: 14px;
   height: 14px;
   background: var(--paper);
-  border-right: 2.5px solid var(--ink);
-  border-bottom: 2.5px solid var(--ink);
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
   transform: translateX(-50%) rotate(45deg);
 }
 
@@ -374,7 +380,7 @@ body {
   display: grid;
   place-items: center;
   padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
-  background: rgba(42, 46, 94, 0.22);
+  background: rgba(61, 51, 40, 0.22);
   animation: fade 0.18s ease-out;
 }
 .sheet {
@@ -382,9 +388,9 @@ body {
   max-height: 100%;
   overflow-y: auto;
   background: var(--paper);
-  border: 3px solid var(--ink);
+  border: 2.5px solid var(--ink);
   border-radius: 26px;
-  box-shadow: 0 8px 0 var(--ink);
+  box-shadow: 0 6px 0 rgba(61, 51, 40, 0.88);
   padding: 18px 20px 20px;
   animation: rise 0.22s cubic-bezier(0.2, 1.2, 0.4, 1);
 }
@@ -427,7 +433,7 @@ body {
 }
 .place--here {
   border-color: var(--ink);
-  background: #eaf6ff;
+  background: #eaf3f3;
 }
 .place__swatch {
   grid-row: 1 / 4;
@@ -456,9 +462,9 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--paper);
-  border: 3px solid var(--ink);
+  border: 2.5px solid var(--ink);
   border-radius: 28px;
-  box-shadow: 0 8px 0 var(--ink);
+  box-shadow: 0 6px 0 rgba(61, 51, 40, 0.88);
   overflow: hidden;
   animation: rise 0.25s cubic-bezier(0.2, 1.2, 0.4, 1);
 }
@@ -504,10 +510,10 @@ body {
 .panel--monitor {
   border: 14px solid var(--ink);
   border-radius: 30px;
-  box-shadow: 0 10px 0 #191c40;
+  box-shadow: 0 10px 0 #2a2219;
 }
 .panel--monitor .panel__head {
-  background: #eafbf5;
+  background: #edf7ef;
 }
 .panel--paper {
   background: var(--paper-warm);
@@ -546,7 +552,7 @@ body {
   background: #fff1ee;
 }
 .panel--drawer .panel__head {
-  background: #eaf6ff;
+  background: #eaf3f3;
 }
 
 /* ---------- 작업 창 안쪽 ---------- */
@@ -740,12 +746,12 @@ body {
   font-family: var(--display);
 }
 .cat--AI {
-  background: #e3f2ff;
-  color: #1d5f99;
+  background: #e6f1f2;
+  color: #3c7aa0;
 }
 .cat--개발 {
-  background: #dcf8ef;
-  color: #17775d;
+  background: #e2f2e6;
+  color: #3d7f63;
 }
 .cat--업계 {
   background: #fff1cc;
@@ -757,7 +763,7 @@ body {
   position: relative;
   width: 100%;
   aspect-ratio: 4 / 5;
-  background: #e3f3ff;
+  background: #e6f1f2;
   background-image: radial-gradient(circle, #ffffff 2px, transparent 2.6px);
   background-size: 18px 18px;
   padding: 5%;
@@ -766,7 +772,7 @@ body {
   border-radius: 6px;
 }
 .cardnews--deep {
-  background-color: #dcf8ef;
+  background-color: #e2f2e6;
 }
 .cardnews__inner {
   position: relative;
@@ -803,7 +809,7 @@ body {
   background: var(--mint);
 }
 .cardnews__pill--light {
-  background: #eaf6ff;
+  background: #eaf3f3;
 }
 .cardnews__handle {
   margin-left: auto;
@@ -993,7 +999,7 @@ body {
   font-family: var(--body);
   font-size: 14px;
   line-height: 1.6;
-  background: #f3f9ff;
+  background: #f4f6ef;
   border-radius: 14px;
   padding: 14px 16px;
   max-height: 180px;
@@ -1058,7 +1064,7 @@ body {
   gap: 10px;
   align-items: end;
   padding: 8px 4px 0;
-  background: repeating-linear-gradient(to top, transparent 0 39px, rgba(42, 46, 94, 0.08) 39px 40px);
+  background: repeating-linear-gradient(to top, transparent 0 39px, rgba(61, 51, 40, 0.08) 39px 40px);
   border-bottom: 2px solid var(--ink);
 }
 .bars__col {
@@ -1136,7 +1142,7 @@ body {
 .tbl th {
   font-family: var(--display);
   font-weight: 400;
-  background: #f6f8ff;
+  background: #f7f5ee;
 }
 .tbl tr:last-child td {
   border-bottom: 0;
@@ -1632,12 +1638,14 @@ body {
 }
 .accent--on {
   border-color: var(--ink);
-  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink);
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--ink);
 }
 .accent--pick {
   position: relative;
   overflow: hidden;
-  background: conic-gradient(#ff6b6b, #ffd36e, #7fe3c6, #8ccbff, #b9a6f2, #ff6b6b);
+  background: conic-gradient(#ff6b6b, #f2c661, #7fe3c6, #8ccbff, #b9a6f2, #ff6b6b);
 }
 .accent--pick input {
   position: absolute;
@@ -1744,7 +1752,7 @@ body {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(242, 250, 255, 0.92);
+  background: rgba(251, 245, 233, 0.92);
   font-family: var(--body);
   color: var(--ink);
 }
@@ -1756,7 +1764,7 @@ body {
   gap: 12px;
   text-align: center;
   background: var(--paper);
-  border: 2.5px solid var(--ink);
+  border: 2px solid var(--ink);
   border-radius: 24px;
   box-shadow: var(--shadow);
   padding: 28px 24px;
@@ -1873,8 +1881,30 @@ body {
   .sample-badge {
     order: 3;
   }
+  .plate {
+    flex: none;
+    padding: 4px 12px 4px 6px;
+    gap: 6px;
+  }
   .plate strong {
     font-size: 17px;
+  }
+  .plate span {
+    display: block;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .hud-top {
+    left: 10px;
+    right: 10px;
+    gap: 8px;
+  }
+  .hud-actions {
+    gap: 6px;
+  }
+  .hud-actions .btn {
+    min-height: 38px;
+    padding: 0 14px;
   }
   .chip {
     font-size: 13px;
@@ -1882,5 +1912,22 @@ body {
   }
   .hint {
     font-size: 14px;
+  }
+}
+/* 아주 좁은 휴대폰: 이름표는 이름만, 시계 버튼은 작게 */
+@media (max-width: 440px) {
+  .plate span {
+    display: none;
+  }
+  .plate strong {
+    font-size: 16px;
+  }
+  .clock {
+    gap: 6px;
+  }
+  .clock .chip {
+    font-size: 12px;
+    padding: 0 10px;
+    gap: 6px;
   }
 }

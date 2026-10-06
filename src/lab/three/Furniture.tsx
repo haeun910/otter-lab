@@ -367,7 +367,12 @@ function RoundTable() {
       })}
       {/* 탁자 위 서류 */}
       {[0.4, 2.2, 4.1].map((a, i) => (
-        <mesh key={i} position={[Math.cos(a) * 1.1, 0.79, Math.sin(a) * 1.1]} rotation={[-Math.PI / 2, 0, a]} material={toyMat(["#FFFFFF", COLORS.butter, COLORS.sky][i])}>
+        <mesh
+          key={i}
+          position={[Math.cos(a) * 1.1, 0.79, Math.sin(a) * 1.1]}
+          rotation={[-Math.PI / 2, 0, a]}
+          material={toyMat(["#FFFFFF", COLORS.butter, COLORS.sky][i])}
+        >
           <planeGeometry args={[0.3, 0.4]} />
         </mesh>
       ))}

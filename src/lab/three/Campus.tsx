@@ -10,6 +10,7 @@ import Furniture, { FOOTPRINT } from "./Furniture";
 import { Anchor } from "./labels";
 import { Bottles, River, Tree, rng, type TreeSpot } from "./Nature";
 import { toyMat } from "./Otter";
+import { grassTexture, painted, rugTexture, toon, woodFloor } from "./style";
 
 import { DOOR_W, WALL_H, WALL_T, wallPieces } from "./walls";
 
@@ -19,7 +20,14 @@ function Walls({ b }: { b: Building }) {
       {(["n", "s", "e", "w"] as Side[]).flatMap((side) =>
         wallPieces(side, b.doors.includes(side)).map((p, i) => (
           <group key={`${side}${i}`}>
-            <RoundedBox args={[p.w, WALL_H[side], p.d]} radius={0.06} position={[p.x, WALL_H[side] / 2, p.z]} castShadow receiveShadow material={toyMat(b.wall)} />
+            <RoundedBox
+              args={[p.w, WALL_H[side], p.d]}
+              radius={0.06}
+              position={[p.x, WALL_H[side] / 2, p.z]}
+              castShadow
+              receiveShadow
+              material={toyMat(b.wall)}
+            />
             {/* 벽 위 띠 */}
             <mesh position={[p.x, WALL_H[side] + 0.02, p.z]} material={toyMat(b.accent)}>
               <boxGeometry args={[p.w + 0.02, 0.06, p.d + 0.02]} />
@@ -53,7 +61,14 @@ function Interactable({ b, o }: { b: Building; o: RoomObject }) {
     ref.current.scale.lerp(v.set(s, s, s), 1 - Math.pow(0.001, dt));
   });
   const f = FOOTPRINT[o.furniture];
-  const top = o.furniture === "bookshelf" || o.furniture === "board" ? 2.75 : o.furniture === "roundTable" ? 3.4 : o.furniture === "drawer" || o.furniture === "chalkboard" ? 2.1 : 1.95;
+  const top =
+    o.furniture === "bookshelf" || o.furniture === "board"
+      ? 2.75
+      : o.furniture === "roundTable"
+        ? 3.4
+        : o.furniture === "drawer" || o.furniture === "chalkboard"
+          ? 2.1
+          : 1.95;
   const use = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     if (e.delta > 8) return;
@@ -183,6 +198,18 @@ function DockDeck() {
   );
 }
 
+const rugMat = (c: string) => painted(`rug:${c}`, () => rugTexture(c));
+
+/** 잔디 재질: 붓으로 찍은 얼룩이 일정한 크기로 반복돼요 */
+function grassMat(base: string, w: number, d: number) {
+  return painted(`grass:${base}:${w}x${d}`, () => {
+    const t = grassTexture(base).clone();
+    t.repeat.set(w / 7, d / 7);
+    t.needsUpdate = true;
+    return t;
+  });
+}
+
 function RoomShell({ b }: { b: Building }) {
   const hover = useLab((s) => s.hover === `room-${b.id}`);
   const overview = useLab((s) => s.scene === "overview");
@@ -200,17 +227,12 @@ function RoomShell({ b }: { b: Building }) {
         <DockDeck />
       ) : (
         <>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} receiveShadow material={toyMat(b.floor)}>
+          {/* 나뭇결이 보이는 마루 */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} receiveShadow material={painted(`floor:${b.floor}`, () => woodFloor(b.floor))}>
             <planeGeometry args={[w, d]} />
           </mesh>
-          {/* 바닥 널 */}
-          {Array.from({ length: 6 }).map((_, i) => (
-            <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[-w / 2 + (i + 0.5) * (w / 6), 0.014, 0]} receiveShadow material={toyMat(i % 2 ? b.floor : "#E2CDB0")}>
-              <planeGeometry args={[w / 6 - 0.03, d - 0.06]} />
-            </mesh>
-          ))}
           {!b.deco && b.id !== "meeting" && (
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0.9]} receiveShadow material={toyMat(b.id === "office" ? COLORS.butter : b.roof)}>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0.9]} receiveShadow material={rugMat(b.id === "office" ? COLORS.butter : b.roof)}>
               <circleGeometry args={[1, 36]} />
             </mesh>
           )}
@@ -259,9 +281,8 @@ function Grounds() {
   return (
     <group>
       {/* 잔디 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]} receiveShadow material={grassMat(COLORS.grass, 400, 300)}>
         <planeGeometry args={[400, 300]} />
-        <meshStandardMaterial color={COLORS.grass} roughness={1} />
       </mesh>
       {/* 본관 바닥 (복도) */}
       <RoundedBox args={[w, 0.3, d]} radius={0.12} position={[cx, -0.15, cz]} receiveShadow material={toyMat("#E8D9C0")} />
@@ -276,9 +297,8 @@ function Grounds() {
         <RoundedBox key={i} args={[ww, 0.4, dd]} radius={0.08} position={[x, 0.2, z]} castShadow receiveShadow material={toyMat(COLORS.stone)} />
       ))}
       {/* 모래 강둑 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, bank - 0.5]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, bank - 0.5]} receiveShadow material={toon("#F3E3C3")}>
         <planeGeometry args={[140, 1.2]} />
-        <meshStandardMaterial color="#F3E3C3" roughness={1} />
       </mesh>
       {stones.map(([x, z], i) => (
         <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.02, z]} receiveShadow material={toyMat("#F1E4CF")}>
@@ -307,15 +327,74 @@ function makeTrees(): TreeSpot[] {
   return out;
 }
 
+const PETALS = ["#FFFFFF", "#F7C6D0", "#F6D98B", "#C9B8F0", "#F09A86"];
+
+/** 담장 밖 덤불과 잔디밭에 핀 작은 꽃 */
+function Garden() {
+  const { bushes, flowers } = useMemo(() => {
+    const r = rng(23);
+    const bank = SITE.riverZ - SITE.riverWidth / 2;
+    const bushes: [number, number, number][] = [];
+    // 담장 앞쪽 양옆과 옆면을 따라
+    for (let x = SITE.minX + 0.8; x < -2.2; x += 1.5) bushes.push([x, SITE.maxZ + 0.75, 0.75 + r() * 0.3]);
+    for (let x = 2.2; x < SITE.maxX - 0.8; x += 1.5) bushes.push([x, SITE.maxZ + 0.75, 0.75 + r() * 0.3]);
+    for (let z = SITE.minZ + 1; z < SITE.maxZ; z += 1.8) {
+      bushes.push([SITE.minX - 0.8, z, 0.7 + r() * 0.35]);
+      bushes.push([SITE.maxX + 0.8, z, 0.7 + r() * 0.35]);
+    }
+    const flowers: [number, number, string][] = [];
+    for (let i = 0; i < 400 && flowers.length < 90; i++) {
+      const x = -28 + r() * 56;
+      const z = SITE.minZ - 10 + r() * (bank - SITE.minZ + 9);
+      const inSite = x > SITE.minX - 1.4 && x < SITE.maxX + 1.4 && z > SITE.minZ - 1.4 && z < SITE.maxZ + 1.4;
+      if (inSite || (Math.abs(x) < 1.6 && z > SITE.maxZ) || z > bank - 1.3) continue;
+      // 몇 송이씩 모여 피어요
+      for (let k = 0; k < 3; k++) flowers.push([x + (r() - 0.5) * 0.7, z + (r() - 0.5) * 0.5, PETALS[Math.floor(r() * PETALS.length)]]);
+    }
+    return { bushes, flowers };
+  }, []);
+  return (
+    <group>
+      {bushes.map(([x, z, s], i) => (
+        <group key={i} position={[x, 0, z]} scale={s}>
+          <mesh castShadow position={[0, 0.38, 0]} material={toon(i % 3 ? COLORS.leaf : "#8FC48A")}>
+            <sphereGeometry args={[0.55, 16, 12]} />
+          </mesh>
+          <mesh castShadow position={[0.4, 0.28, 0.1]} material={toon(i % 3 ? COLORS.leaf : "#8FC48A")}>
+            <sphereGeometry args={[0.38, 14, 10]} />
+          </mesh>
+        </group>
+      ))}
+      {flowers.map(([x, z, c], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, 0.14, 0]} material={toon(COLORS.leafDeep)}>
+            <cylinderGeometry args={[0.02, 0.02, 0.28, 4]} />
+          </mesh>
+          <mesh position={[0, 0.3, 0]} material={toon(c)}>
+            <sphereGeometry args={[0.12, 10, 8]} />
+          </mesh>
+          <mesh position={[0, 0.33, 0.06]} material={toon(COLORS.butter)}>
+            <sphereGeometry args={[0.05, 8, 6]} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
 export default function Campus() {
   const trees = useMemo(makeTrees, []);
   return (
     <group>
       <Grounds />
       <River z={SITE.riverZ} width={SITE.riverWidth} />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, SITE.riverZ + SITE.riverWidth / 2 + 12]} receiveShadow>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, -0.01, SITE.riverZ + SITE.riverWidth / 2 + 12]}
+        receiveShadow
+        material={grassMat(COLORS.grassDeep, 140, 24)}
+      >
         <planeGeometry args={[140, 24]} />
-        <meshStandardMaterial color={COLORS.grassDeep} roughness={1} />
       </mesh>
       <Bottles z={SITE.riverZ} />
       {BUILDINGS.map((b) => (
@@ -324,6 +403,7 @@ export default function Campus() {
       {trees.map((t, i) => (
         <Tree key={i} t={t} />
       ))}
+      <Garden />
       <Crew />
     </group>
   );

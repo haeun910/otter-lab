@@ -76,10 +76,7 @@ const riverFrag = /* glsl */ `
 `;
 
 export function River({ z, width }: { z: number; width: number }) {
-  const mat = useMemo(
-    () => new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 } }, vertexShader: riverVert, fragmentShader: riverFrag }),
-    [],
-  );
+  const mat = useMemo(() => new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 } }, vertexShader: riverVert, fragmentShader: riverFrag }), []);
   useFrame(({ clock }) => {
     mat.uniforms.uTime.value = clock.elapsedTime;
   });
@@ -97,7 +94,7 @@ export function Bottles({ z }: { z: number }) {
     () =>
       Array.from({ length: 7 }).map((_, i) => ({
         offset: i / 7,
-        lane: z + (i % 3 - 1) * 1.1,
+        lane: z + ((i % 3) - 1) * 1.1,
         color: [COLORS.sky, COLORS.mint, COLORS.coral, COLORS.butter][i % 4],
       })),
     [z],

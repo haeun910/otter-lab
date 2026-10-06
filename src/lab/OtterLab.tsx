@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { COLORS, SITE } from "./data/buildings";
 import { live, useLab } from "./store";
 import CameraRig from "./three/CameraRig";
+import Illustrate from "./three/Illustrate";
 import Campus from "./three/Campus";
 import { Projector } from "./three/labels";
 import LabelLayer from "./ui/LabelLayer";
@@ -18,10 +19,12 @@ function Lights() {
   const r = Math.max(SITE.maxX - SITE.minX, SITE.riverZ - SITE.minZ) * 0.75;
   return (
     <>
-      <hemisphereLight args={["#FFFFFF", "#CDEBD3", 1.6]} />
+      {/* 아침 햇살: 하늘은 맑고 땅은 따뜻하게, 해는 왼쪽 위에서 */}
+      <hemisphereLight args={["#FFF7E8", "#C9D9B0", 1.9]} />
       <directionalLight
-        position={[10, 26, 16]}
-        intensity={1.3}
+        position={[-12, 28, 14]}
+        intensity={1.5}
+        color="#FFF1DA"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
@@ -129,19 +132,20 @@ export default function OtterLab() {
       <Canvas
         className="lab__canvas"
         flat
-        shadows={{ type: THREE.PCFShadowMap }}
+        shadows={{ type: THREE.PCFSoftShadowMap }}
         dpr={[1, 2]}
-        camera={{ fov: 30, near: 0.5, far: 420, position: [0, 34, 40] }}
+        orthographic
+        camera={{ zoom: 20, near: 1, far: 220, position: [0, 70, 55] }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onPointerMissed={() => useLab.getState().setHover(null)}
       >
         <color attach="background" args={[COLORS.bg]} />
-        <fog attach="fog" args={[COLORS.bg, 170, 320]} />
         <Lights />
         <Suspense fallback={null}>
           <Campus />
         </Suspense>
         <CameraRig />
+        <Illustrate />
         <Projector />
       </Canvas>
       <LabelLayer />
