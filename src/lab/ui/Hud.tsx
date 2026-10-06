@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fmtHM, heldToday, kstDay, kstMinutes, meetingDue, parseHM, startMeeting } from "../company";
 import { BUILDINGS, byId } from "../data/buildings";
+import { useRoomStatus } from "../map/PaintedMap";
 import { useLab } from "../store";
 import { OTTER_SVG_INNER } from "./otterSvg";
 
@@ -17,7 +18,7 @@ function CloudBadge() {
   return <em className={`cloud cloud--${cloud}`}>{label}</em>;
 }
 
-/** 지금 한국 시간과 다음 회의. 회의 시간이 되면 연구원들을 회의실로 불러요 */
+/** 지금 한국 시간과 다음 회의. 회의 시간이 되면 연구원들을 마당으로 불러요 */
 function Clock() {
   const [now, setNow] = useState(() => Date.now());
   const meetingAt = useLab((s) => s.schedule.meetingAt);
@@ -35,14 +36,10 @@ function Clock() {
     prev.current = now;
     if (crossed && !heldToday(meetings, now) && useLab.getState().phase === "work") startMeeting("time");
   }, [now, meetingAt, meetings]);
-  const held = heldToday(meetings, now);
   const due = meetingDue(meetingAt, meetings, now);
   return (
     <div className="clock">
       <span className="clock__now">{fmtHM(kstMinutes(now))}</span>
-      <span className="clock__next">
-        {phase === "meeting" || phase === "gathering" ? "회의 중" : held ? "오늘 회의 끝" : `${fmtHM(parseHM(meetingAt))} 회의`}
-      </span>
       {phase === "work" && (
         <button className={`chip ${due ? "chip--alert" : ""}`} onClick={() => startMeeting("manual")}>
           {due && <span className="dot" aria-hidden="true" />}
@@ -50,6 +47,38 @@ function Clock() {
         </button>
       )}
     </div>
+  );
+}
+
+/** 방에 들어갔을 때 아래쪽 안내: 누가 있는지, 지금 하는 일, 열어 볼 수 있는 것 */
+function RoomBar({ id }: { id: string }) {
+  const b = byId(id);
+  const who = useLab((s) => s.staff[id]);
+  const status = useRoomStatus(id);
+  const travel = useLab((s) => s.travel);
+  const openFocus = useLab((s) => s.openFocus);
+  return (
+    <section className="roombar" aria-label={b.name}>
+      <div className="roombar__head">
+        <h2>
+          <i className="sign__dot" style={{ background: b.roof }} />
+          {b.name}
+        </h2>
+        <p>
+          {[who ? `${who.title} ${who.name}` : id === "office" ? "나의 방" : id === "meeting" ? "다 같이 모이는 곳" : "", status].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <div className="roombar__tools">
+        {b.objects.map((o) => (
+          <button key={o.id} className="btn btn--primary" onClick={() => openFocus(o)}>
+            {o.label}
+          </button>
+        ))}
+        <button className="btn btn--light" onClick={() => travel("overview")}>
+          전체 지도
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -63,21 +92,11 @@ export default function Hud() {
   const setMapOpen = useLab((s) => s.setMapOpen);
   const travel = useLab((s) => s.travel);
   const overview = scene === "overview";
-  const where = overview ? "본관" : byId(scene).name;
   const waiting = useLab((s) => s.drafts.filter((d) => d.status === "검토 대기").length);
 
   return (
     <>
       <header className="hud-top">
-        <div className="plate">
-          <OtterFace size={34} />
-          <div>
-            <strong>Otter Lab</strong>
-            <span>
-              {where} · <CloudBadge />
-            </span>
-          </div>
-        </div>
         <div className="hud-actions">
           <Clock />
           {!focus && waiting > 0 && (
@@ -94,12 +113,13 @@ export default function Hud() {
       {!focus && (
         <div className="hud-bottom">
           {!overview ? (
-            <button className="btn btn--light" onClick={() => travel("overview")}>
-              본관 전체 보기
-            </button>
-          ) : hint ? (
-            <p className="hint">방을 누르면 다가가서 봐요. 화면을 끌면 돌리고 기울일 수 있고, WASD·방향키로 내 수달을 움직여요.</p>
-          ) : null}
+            <RoomBar id={scene} />
+          ) : (
+            <>
+              <CloudBadge />
+              {hint && <p className="hint">방을 누르면 다가가서 봐요. 끌어서 지도를 옮기고, 휠·두 손가락으로 확대해요.</p>}
+            </>
+          )}
         </div>
       )}
 
@@ -122,7 +142,7 @@ export default function Hud() {
               <li>
                 <button className={`place ${overview ? "place--here" : ""}`} onClick={() => travel("overview")}>
                   <span className="place__swatch" style={{ background: "#BFE8B0" }} />
-                  <span className="place__name">본관 전체</span>
+                  <span className="place__name">전체 지도</span>
                   <span className="place__who">모든 방을 한눈에</span>
                 </button>
               </li>

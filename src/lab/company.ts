@@ -9,23 +9,25 @@ import { draftLabel, useLab } from "./store";
 // ---------- 회의 진행 ----------
 let gatherTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** 연구원들이 회의실로 모여요. 다 모이면(또는 조금 기다린 뒤) 회의 탁자 창이 열려요 */
+/** 연구원들이 가운데 마당 나무 아래로 모여요. 잠깐 뒤 오늘 회의 창이 열려요 */
 export function startMeeting(reason: "time" | "manual") {
   const st = useLab.getState();
   if (st.phase !== "work") return;
   st.setPhase("gathering");
-  // 다들 복도를 지나 모이는 모습이 보이게 본관 전체로
-  st.travel("overview");
-  st.say(reason === "time" ? `${st.schedule.meetingAt} 회의 시간이에요. 연구원들이 회의실로 모여요.` : "회의를 소집했어요. 연구원들이 회의실로 모여요.");
+  st.say(
+    reason === "time"
+      ? `${st.schedule.meetingAt} 회의 시간이에요. 연구원들이 마당 나무 아래로 모여요.`
+      : "회의를 소집했어요. 연구원들이 마당 나무 아래로 모여요.",
+  );
   // 루미는 모이는 동안 최신 소식을 한 번 더 받아 와요 (서버가 있을 때만)
   void fetchNews().then((res) => {
     if (res?.items.length) useLab.getState().receiveNews(res.items, res.fetchedAt);
   });
   clearTimeout(gatherTimer);
-  gatherTimer = setTimeout(openAgenda, 20_000);
+  gatherTimer = setTimeout(openAgenda, 2_500);
 }
 
-/** 모두 앉았을 때 Crew가 불러요 */
+/** 다 모이면 회의 창을 열어요 */
 export function openAgenda() {
   clearTimeout(gatherTimer);
   const st = useLab.getState();
@@ -33,11 +35,11 @@ export function openAgenda() {
   st.setPhase("meeting");
   st.travel("meeting");
   st.say("다 모였어요. 회의를 시작할게요.");
-  // 둘러앉은 모습을 잠깐 보여 주고 안건을 펼쳐요
+  // 마당을 잠깐 보여 주고 안건을 펼쳐요
   const table = byId("meeting").objects.find((o) => o.panel === "meeting")!;
   setTimeout(() => {
     if (useLab.getState().phase === "meeting") useLab.getState().openFocus(table);
-  }, 1800);
+  }, 900);
 }
 
 export interface Decision {
@@ -72,7 +74,7 @@ export async function closeMeeting(dec: Decision | null) {
   st.say(jobs.length ? `회의 끝! ${jobs.map((j) => j.type).join("·")} 초안을 쓰러 각자 자리로 돌아가요.` : "회의 끝! 다들 자리로 돌아가요.");
   setTimeout(() => {
     if (useLab.getState().phase === "returning") useLab.getState().setPhase("work");
-  }, 15_000);
+  }, 1_500);
 
   for (const job of jobs) await writeJob(job.type, job.items, meetingId);
 }
@@ -94,10 +96,28 @@ export async function writeJob(type: DraftType, items: NewsItem[], meetingId?: s
       (step) => useLab.getState().say(`${type} 초안: ${step}…`),
     );
     const now = Date.now();
-    const draft: Draft = { id: `d${now.toString(36)}`, type, createdAt: now, status: "검토 대기", engine: w.engine, sources: items.map((n) => n.link), deck: w.deck, blog: w.blog };
+    const draft: Draft = {
+      id: `d${now.toString(36)}`,
+      type,
+      createdAt: now,
+      status: "검토 대기",
+      engine: w.engine,
+      sources: items.map((n) => n.link),
+      deck: w.deck,
+      blog: w.blog,
+    };
     useLab.getState().addDraft(draft);
     if (meetingId) useLab.setState((s) => ({ meetings: s.meetings.map((m) => (m.id === meetingId ? { ...m, drafts: [...m.drafts, draft.id] } : m)) }));
-    const why = w.engine === "groq" ? (w.notes?.length ? ` (${w.notes.length}곳은 직접 채워 주세요)` : "") : w.why === "nokey" ? " (Groq 키가 없어 뼈대 초안)" : w.why === "error" ? " (Groq 연결 실패로 뼈대 초안)" : " (서버 없이 뼈대 초안)";
+    const why =
+      w.engine === "groq"
+        ? w.notes?.length
+          ? ` (${w.notes.length}곳은 직접 채워 주세요)`
+          : ""
+        : w.why === "nokey"
+          ? " (Groq 키가 없어 뼈대 초안)"
+          : w.why === "error"
+            ? " (Groq 연결 실패로 뼈대 초안)"
+            : " (서버 없이 뼈대 초안)";
     useLab.getState().say(`${type} 초안 '${draftLabel(draft)}'이 나왔어요${why}. 카드뉴스 공방에서 확인해 보세요.`);
     return draft;
   } finally {

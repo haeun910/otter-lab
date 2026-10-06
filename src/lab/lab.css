@@ -1,13 +1,13 @@
-/* 오터랩: 강가의 실제 연구소 건물을 내려다보는 화면. 3D 장면 위에 깔끔한 작업 창이 얹혀요.
-   밝은 한 가지 분위기로 고정해요 (3D 장면과 함께 보이도록). */
+/* 오터랩: 숲속 강가 연구소를 그린 손그림 지도. 그림 위에 깔끔한 작업 창이 얹혀요.
+   밝은 한 가지 분위기로 고정해요 (그림과 함께 보이도록). */
 :root {
-  --bg: #e7eae6;
+  --bg: #2f4436;
   --paper: #ffffff;
-  --paper-warm: #f6f5f2;
-  --ink: #1d2126;
-  --ink-soft: #5d646d;
-  --line: #e3e3df;
-  --edge: rgba(24, 28, 32, 0.13);
+  --paper-warm: #fbf6ee;
+  --ink: #33291f;
+  --ink-soft: #6f6253;
+  --line: #ece4d6;
+  --edge: rgba(51, 41, 31, 0.14);
   --sky: #a9cde3;
   --sky-deep: #4f88b0;
   --mint: #a7d6c3;
@@ -19,7 +19,7 @@
   --cream: #f4efe6;
   --wood: #a98060;
   --cork: #d8b98f;
-  --accent: #2f6f68;
+  --accent: #3f7350;
   --display: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --shadow: 0 12px 32px rgba(18, 22, 26, 0.16), 0 2px 6px rgba(18, 22, 26, 0.08);
@@ -1937,5 +1937,174 @@ body {
     font-size: 12px;
     padding: 0 10px;
     gap: 6px;
+  }
+}
+
+/* ---------- 손그림 지도 ---------- */
+.map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.map:active {
+  cursor: grabbing;
+}
+.map__world {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.map__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.map__spots {
+  position: absolute;
+  inset: 0;
+}
+.spot {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+  transition:
+    fill 0.18s ease,
+    stroke 0.18s ease;
+}
+.spot--hover {
+  fill: rgba(255, 244, 214, 0.16);
+  stroke: rgba(255, 250, 238, 0.95);
+}
+.spot--here {
+  stroke: rgba(255, 250, 238, 0.9);
+  stroke-dasharray: 10 8;
+}
+.map__dim {
+  fill: rgba(28, 22, 16, 0.42);
+  pointer-events: none;
+}
+.map__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.map__overlay--hidden {
+  display: none;
+}
+.badge {
+  position: absolute;
+  transform: translate(-50%, 0);
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  background: rgba(255, 252, 245, 0.95);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  padding: 3px 10px;
+  box-shadow: var(--shadow-sm);
+}
+.badge--busy {
+  background: var(--butter);
+}
+.badge--sign {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 12px;
+  padding: 5px 12px;
+  line-height: 1.35;
+}
+.badge--sign strong {
+  font-size: 14px;
+}
+.bubble--map,
+.writing {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 10px));
+}
+.writing {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  background: var(--butter);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  padding: 3px 10px;
+  box-shadow: var(--shadow-sm);
+  animation: pop 0.25s ease-out;
+}
+.hud-bottom .cloud {
+  align-self: center;
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: rgba(255, 252, 245, 0.92);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.hud-bottom .cloud--off,
+.hud-bottom .cloud--error {
+  color: var(--coral-deep);
+}
+
+/* 방에 들어갔을 때 아래쪽 안내 */
+.roombar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: min(720px, 100%);
+  box-sizing: border-box;
+  background: rgba(255, 252, 245, 0.97);
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  padding: 14px 16px 14px 20px;
+  box-shadow: var(--shadow);
+  animation: rise 0.22s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+.roombar__head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 18px;
+}
+.roombar__head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.roombar__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  .roombar {
+    padding: 12px;
+    gap: 10px;
+  }
+  .roombar__tools {
+    width: 100%;
+  }
+  .roombar__tools .btn {
+    flex: 1 1 auto;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
   }
 }

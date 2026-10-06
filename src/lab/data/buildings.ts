@@ -13,8 +13,8 @@ export type PanelKind =
   | "roster" // 직원 명부
   | "brand" // 브랜드 설정
   | "drafts" // 보관함
-  | "meeting" // 회의 탁자: 오늘 회의
-  | "minutes"; // 회의록 칠판: 지난 회의, 회의 시간
+  | "meeting" // 오늘 회의
+  | "minutes"; // 회의록: 지난 회의, 회의 시간
 
 export type Furniture =
   | "monitorDesk"
@@ -148,7 +148,7 @@ export const BUILDINGS: Building[] = [
   },
   {
     id: "meeting",
-    name: "회의실",
+    name: "회의 마당",
     pos: at(0, 0),
     doors: ["n", "s", "e", "w"],
     roof: "#9ED9C8",
@@ -156,8 +156,8 @@ export const BUILDINGS: Building[] = [
     accent: COLORS.mintDeep,
     floor: "#EADCC6",
     objects: [
-      { id: "meeting-table", label: "회의 탁자", panel: "meeting", furniture: "roundTable", pos: [0, 0.2] },
-      { id: "meeting-board", label: "회의록 칠판", panel: "minutes", furniture: "chalkboard", pos: [-3.05, -1.55], rot: Math.PI / 2 },
+      { id: "meeting-table", label: "오늘 회의", panel: "meeting", furniture: "roundTable", pos: [0, 0.2] },
+      { id: "meeting-board", label: "회의록", panel: "minutes", furniture: "chalkboard", pos: [-3.05, -1.55], rot: Math.PI / 2 },
     ],
   },
   {

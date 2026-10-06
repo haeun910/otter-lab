@@ -7,7 +7,7 @@ import { mergeNews } from "./news/rss";
 
 export type SceneId = "overview" | string; // 본관 전체 또는 방 id
 
-/** 연구소의 하루: 각자 방에서 일하다가, 회의 시간이 되면 회의실에 모여요 */
+/** 연구소의 하루: 각자 방에서 일하다가, 회의 시간이 되면 마당 나무 아래 모여요 */
 export type Phase = "work" | "gathering" | "meeting" | "returning";
 
 export interface StaffEdit {
@@ -135,7 +135,7 @@ export const useLab = create<LabState>()(
           set({ focus: o });
           setTimeout(() => {
             if (get().focus?.id === o.id) set({ panelOpen: true });
-          }, 650);
+          }, 120);
         },
         closeFocus: () => set({ focus: null, panelOpen: false }),
         say: (msg) => {
@@ -232,13 +232,3 @@ export function pickCurrent(drafts: Draft[], current: string | null): Draft | un
 
 /** 초안 이름: 표지 카드 제목 */
 export const draftLabel = (d: Draft) => d.deck.cards[0]?.title || d.blog.title || "제목 없는 초안";
-
-// 매 프레임 바뀌는 값은 리렌더 없이 공유해요
-export const live = {
-  camAzimuth: 0, // 카메라 좌우 회전 (끌어서)
-  camTilt: 0, // 카메라 위아래 기울기 (끌어서). +면 더 위에서 내려다봐요
-  camZoom: 1,
-  keys: new Set<string>(), // 지금 누르고 있는 이동 키 (WASD·방향키)
-  seated: 0, // 회의실 자리에 앉은 직원 수
-  atDesk: 0, // 자기 자리로 돌아간 직원 수
-};

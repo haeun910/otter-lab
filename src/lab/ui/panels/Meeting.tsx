@@ -20,7 +20,7 @@ function Speaker({ id, topic }: { id: string; topic: string }) {
   );
 }
 
-// ---------- 회의 탁자: 오늘 회의 ----------
+// ---------- 오늘 회의 ----------
 export function MeetingPanel() {
   const phase = useLab((s) => s.phase);
   if (phase !== "meeting") return <MeetingIdle />;
@@ -38,9 +38,9 @@ function MeetingIdle() {
         매일 <strong>{fmtHM(parseHM(meetingAt))}</strong>이 되면 연구원들이 이 탁자에 모여요. 루미가 오늘 소식에서 추천을 골라 오고, 나래가 성과를, 바다가 게시 대기 초안을 보고해요. 소장님이 정하면
         모모와 테오가 초안을 써요.
       </p>
-      {held && <p className="muted">오늘 회의는 이미 했어요. 회의록 칠판에서 내용을 볼 수 있어요.</p>}
+      {held && <p className="muted">오늘 회의는 이미 했어요. 회의록에서 내용을 볼 수 있어요.</p>}
       <footer className="pn__foot">
-        <span className="muted">회의 시간은 회의록 칠판에서 바꿀 수 있어요.</span>
+        <span className="muted">회의 시간은 회의록에서 바꿀 수 있어요.</span>
         <button
           className="btn btn--primary"
           disabled={phase !== "work"}
@@ -169,7 +169,7 @@ function Agenda() {
   );
 }
 
-// ---------- 회의록 칠판 ----------
+// ---------- 회의록 ----------
 export function MinutesPanel() {
   const meetings = useLab((s) => s.meetings);
   const drafts = useLab((s) => s.drafts);

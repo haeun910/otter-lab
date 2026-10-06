@@ -2,7 +2,7 @@
   "name": "otter-lab",
   "version": "0.1.0",
   "private": true,
-  "description": "오터랩: 수달 연구원들이 AI·IT 소식으로 카드뉴스와 블로그 글을 만드는 3D 강가 연구소",
+  "description": "오터랩: 수달 연구원들이 AI·IT 소식으로 카드뉴스와 블로그 글을 만드는 숲속 강가 연구소",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,22 +14,16 @@
     "test": "tsx tests/daily.test.mts && tsx tests/sync.test.mts && tsx tests/guard.test.mts && tsx tests/pipeline.test.mts"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.9",
-    "@react-three/fiber": "^9.8.1",
-    "@react-three/postprocessing": "^3.1.3",
     "@supabase/supabase-js": "^2.117.2",
     "next": "^16.3.8",
-    "postprocessing": "^6.39.5",
     "react": "~19.3.0",
     "react-dom": "~19.3.0",
-    "three": "^0.186.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.2",
     "tsx": "^4.23.15",
     "typescript": "^5",

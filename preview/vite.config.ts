@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-// 1단계 확인용: 3D 연구소를 HTML 파일 하나로 묶어 링크로 공유해요.
+// 미리보기: 연구소를 HTML 파일 하나로 묶어 링크로 공유해요.
 export default defineConfig({
   root: resolve(__dirname),
   plugins: [react(), viteSingleFile()],
