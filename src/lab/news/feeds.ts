@@ -36,7 +36,8 @@ export const FEEDS: Feed[] = [
 
   // ---- Dev ----
   { source: "GeekNews", url: "https://news.hada.io/rss/news", region: "국내", category: "mixed", fallback: "Dev" },
-  { source: "요즘IT", url: "https://yozm.wishket.com/magazine/feed/", region: "국내", category: "mixed", fallback: "Dev" },
+  { source: "토스 기술 블로그", url: "https://toss.tech/rss.xml", region: "국내", category: "Dev", perFeed: 4 },
+  { source: "우아한형제들 기술블로그", url: "https://techblog.woowahan.com/feed/", region: "국내", category: "Dev", perFeed: 4 },
   { source: "카카오 기술 블로그", url: "https://tech.kakao.com/feed/", region: "국내", category: "Dev", perFeed: 4 },
   { source: "네이버 D2", url: "https://d2.naver.com/d2.atom", region: "국내", category: "Dev", perFeed: 4 },
   { source: "Hacker News", url: "https://hnrss.org/frontpage?points=150", region: "해외", category: "mixed", fallback: "Dev" },
@@ -58,6 +59,6 @@ export const FEEDS: Feed[] = [
 
   // ---- Tools ----
   { source: "Product Hunt", url: "https://www.producthunt.com/feed", region: "해외", category: "Tools", perFeed: 10 },
-  { source: "Show HN", url: "https://hnrss.org/show?points=60", region: "해외", category: "Tools", perFeed: 8 },
-  { source: "GeekNews Show", url: "https://news.hada.io/rss/show", region: "국내", category: "Tools", perFeed: 8 },
+  // Show HN·Show GN은 Hacker News·GeekNews 피드에서 머리말로 가려서 Tools로 받아요
+  { source: "Show HN", url: "https://hnrss.org/show?points=40&count=30", region: "해외", category: "Tools", perFeed: 8 },
 ];

@@ -3,7 +3,7 @@ import type { NewsItem } from "../data/demo";
 import type { LLM } from "../gen/pipeline";
 import { CATEGORIES, CATEGORY_INFO, type Category } from "./category";
 
-export async function refineCategories(items: NewsItem[], unsure: string[], llm: LLM, max = 60): Promise<{ items: NewsItem[]; changed: number }> {
+export async function refineCategories(items: NewsItem[], unsure: string[], llm: LLM, max = 120): Promise<{ items: NewsItem[]; changed: number }> {
   const want = new Set(unsure);
   const targets = items.filter((n) => want.has(n.link)).slice(0, max);
   if (!targets.length) return { items, changed: 0 };
@@ -17,7 +17,7 @@ export async function refineCategories(items: NewsItem[], unsure: string[], llm:
         content: `아래 ${targets.length}개 소식의 분야를 차례대로 골라 줘.\n형식: {"c":["AI","Dev",...]} (모두 ${targets.length}개)\n\n${lines}`,
       },
     ],
-    { maxTokens: 900 },
+    { maxTokens: 1600 },
   )) as { c?: unknown };
   const picks = Array.isArray(res?.c) ? res.c : [];
   const next = new Map<string, Category>();
