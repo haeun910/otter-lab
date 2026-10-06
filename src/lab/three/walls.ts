@@ -23,4 +23,3 @@ export function wallPieces(side: Side, door: boolean): { x: number; z: number; w
     return horiz ? { x: mid, z: off, w: l, d: WALL_T } : { x: off, z: mid, w: WALL_T, d: l };
   });
 }
-

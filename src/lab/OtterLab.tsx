@@ -2,10 +2,9 @@
 import { Canvas } from "@react-three/fiber";
 import { Suspense, useEffect, useRef } from "react";
 import * as THREE from "three";
-import { COLORS, SITE } from "./data/buildings";
 import { live, useLab } from "./store";
-import CameraRig from "./three/CameraRig";
-import Illustrate from "./three/Illustrate";
+import CameraRig, { FOV } from "./three/CameraRig";
+import { Effects, HAZE, Sky, Sun } from "./three/Atmosphere";
 import Campus from "./three/Campus";
 import { Projector } from "./three/labels";
 import LabelLayer from "./ui/LabelLayer";
@@ -14,31 +13,6 @@ import LoginGate from "./ui/LoginGate";
 import PanelHost from "./ui/PanelHost";
 import { staffLine } from "./three/Crew";
 import "./lab.css";
-
-function Lights() {
-  const r = Math.max(SITE.maxX - SITE.minX, SITE.riverZ - SITE.minZ) * 0.75;
-  return (
-    <>
-      {/* 아침 햇살: 하늘은 맑고 땅은 따뜻하게, 해는 왼쪽 위에서 */}
-      <hemisphereLight args={["#FFF7E8", "#C9D9B0", 1.9]} />
-      <directionalLight
-        position={[-12, 28, 14]}
-        intensity={1.5}
-        color="#FFF1DA"
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.02}
-        shadow-camera-left={-r}
-        shadow-camera-right={r}
-        shadow-camera-top={r}
-        shadow-camera-bottom={-r}
-        shadow-camera-near={1}
-        shadow-camera-far={80}
-      />
-    </>
-  );
-}
 
 export default function OtterLab() {
   const scene = useLab((s) => s.scene);
@@ -131,21 +105,20 @@ export default function OtterLab() {
     <div className="lab" ref={wrap}>
       <Canvas
         className="lab__canvas"
-        flat
         shadows={{ type: THREE.PCFSoftShadowMap }}
-        dpr={[1, 2]}
-        orthographic
-        camera={{ zoom: 20, near: 1, far: 220, position: [0, 70, 55] }}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        dpr={[1, 1.75]}
+        camera={{ fov: FOV, near: 0.5, far: 400, position: [0, 50, 40] }}
+        gl={{ antialias: false, powerPreference: "high-performance", stencil: false }}
         onPointerMissed={() => useLab.getState().setHover(null)}
       >
-        <color attach="background" args={[COLORS.bg]} />
-        <Lights />
+        <color attach="background" args={[HAZE]} />
+        <Sky />
+        <Sun />
         <Suspense fallback={null}>
           <Campus />
         </Suspense>
         <CameraRig />
-        <Illustrate />
+        <Effects />
         <Projector />
       </Canvas>
       <LabelLayer />

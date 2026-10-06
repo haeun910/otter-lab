@@ -168,7 +168,7 @@ function CrewOtter({ m, nav, index }: { m: Member; nav: NavGrid; index: number }
       >
         <Otter gear={m.gear} animRef={anim} scale={m.id === "me" ? 0.92 : 0.86} seed={index + 1} />
       </group>
-      <Anchor id={key} position={[0, 2.0, 0]} />
+      <Anchor id={key} position={[0, 1.7, 0]} />
     </group>
   );
 }
