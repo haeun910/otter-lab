@@ -37,7 +37,6 @@ export const FEEDS: Feed[] = [
   // ---- Dev ----
   { source: "GeekNews", url: "https://news.hada.io/rss/news", region: "국내", category: "mixed", fallback: "Dev" },
   { source: "토스 기술 블로그", url: "https://toss.tech/rss.xml", region: "국내", category: "Dev", perFeed: 4 },
-  { source: "우아한형제들 기술블로그", url: "https://techblog.woowahan.com/feed/", region: "국내", category: "Dev", perFeed: 4 },
   { source: "카카오 기술 블로그", url: "https://tech.kakao.com/feed/", region: "국내", category: "Dev", perFeed: 4 },
   { source: "네이버 D2", url: "https://d2.naver.com/d2.atom", region: "국내", category: "Dev", perFeed: 4 },
   { source: "Hacker News", url: "https://hnrss.org/frontpage?points=150", region: "해외", category: "mixed", fallback: "Dev" },
