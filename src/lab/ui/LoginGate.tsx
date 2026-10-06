@@ -4,6 +4,17 @@ import { GOOGLE_LOGIN, cloudConfigured, configProblem, connectionInfo } from "..
 import { sendLoginLink, signInWithGoogle, signOut, watchSession, type Gate } from "../cloud/session";
 import { OtterFace } from "./Hud";
 
+/** 로그인 링크가 실패해서 돌아왔을 때 그 이유를 한국어로 */
+export function linkError(part: string): string | null {
+  const q = new URLSearchParams(part.replace(/^[#?]/, ""));
+  const code = q.get("error_code") ?? q.get("error");
+  if (!code) return null;
+  const desc = q.get("error_description")?.replace(/\+/g, " ") ?? code;
+  if (/otp_expired|expired|invalid/i.test(code + desc))
+    return "이 로그인 링크는 이미 쓰였거나 만료됐어요. 메일 링크는 한 번만 쓸 수 있어요. 아래에서 새 링크를 받아 주세요.";
+  return `로그인 링크가 실패했어요: ${desc}`;
+}
+
 /** Supabase를 쓰는 배포에서만: 연구소 주인으로 로그인해야 연구소가 열려요 */
 export default function LoginGate() {
   const [gate, setGate] = useState<Gate>({
@@ -17,6 +28,12 @@ export default function LoginGate() {
   const problem = cloudConfigured() ? configProblem() : null;
   useEffect(() => {
     if (!cloudConfigured() || configProblem()) return;
+    // 메일 링크가 실패하면 Supabase가 주소 끝(#error=…)에 이유를 붙여 돌려보내요
+    const why = linkError(location.hash) ?? linkError(location.search);
+    if (why) {
+      setErr(why);
+      history.replaceState(null, "", location.pathname);
+    }
     let off: (() => void) | undefined;
     watchSession(setGate).then((f) => (off = f));
     return () => off?.();
