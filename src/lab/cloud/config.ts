@@ -35,6 +35,8 @@ export function configProblem(): string | null {
     return SUPABASE_ANON_KEY.startsWith("sb_secret_")
       ? "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY에 secret 키가 들어가 있어요. 바로 Supabase에서 secret 키를 새로 만들고(예전 것은 삭제), 이 칸에는 sb_publishable_ 키를 넣어 주세요."
       : "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY 값은 sb_publishable_(예전 프로젝트는 eyJ)로 시작해야 해요.";
+  if (SUPABASE_ANON_KEY.startsWith("sb_publishable_") && SUPABASE_ANON_KEY.length > 80)
+    return `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY 값이 너무 길어요 (${SUPABASE_ANON_KEY.length}자). 키 뒤에 다른 글자가 붙어 있는 것 같아요. Supabase API Keys 화면의 복사 버튼으로 키만 다시 넣어 주세요.`;
   if (SUPABASE_ANON_KEY.startsWith("eyJ")) {
     const c = jwtClaims(SUPABASE_ANON_KEY);
     if (c?.role === "service_role") return "공개용 칸에 service_role(비밀) 키가 들어가 있어요. 바로 anon 키로 바꾸고, Supabase에서 비밀 키를 새로 만들어 주세요.";

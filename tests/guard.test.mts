@@ -18,6 +18,11 @@ assert.throws(() => new Headers({ apikey: "sb_publishable_ab\ncd" }));
 assert.equal(cleanKey(' "sb_publishable_ab\r\ncd "\n'), "sb_publishable_abcd");
 assert.equal(cleanUrl(" https://abc.supabase.co/rest/v1/\n"), "https://abc.supabase.co");
 assert.equal(cleanUrl("https://abc.supabase.co/"), "https://abc.supabase.co");
+// Connect 창의 여러 줄을 통째로 붙여 넣어도 키·주소만 골라요
+const pasted = "NEXT_PUBLIC_SUPABASE_URL=https://abc.supabase.co\nNEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_AbC-12_x\n";
+assert.equal(cleanKey(pasted), "sb_publishable_AbC-12_x");
+assert.equal(cleanUrl(pasted), "https://abc.supabase.co");
+assert.equal(cleanKey("sb_publishable_AbC\nNEXT_PUBLIC_SUPABASE_URL=https://abc.supabase.co"), "sb_publishable_AbC");
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://x.supabase.co\n";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_test\n";
 assert.equal(await guard(req("owner-token")), null, "줄바꿈이 섞여도 통과");

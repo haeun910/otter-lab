@@ -23,10 +23,27 @@ export async function headersFor(c: Cloud): Promise<Record<string, string>> {
   return { apikey: c.key, ...(bearer ? { authorization: `Bearer ${bearer}` } : {}) };
 }
 
-/** 붙여 넣다 섞인 공백·줄바꿈·따옴표를 걷어내요 (키에는 원래 공백이 없어요) */
-export const cleanKey = (v: string | undefined) => (v ?? "").replace(/[\s"'`]+/g, "");
-/** 주소 끝의 / 나 /rest/v1 같은 꼬리도 떼요 */
-export const cleanUrl = (v: string | undefined) => cleanKey(v).replace(/\/(rest\/v1|auth\/v1)?\/?$/, "");
+/**
+ * 붙여 넣은 값에서 키만 골라내요. 여러 줄(예: "NEXT_PUBLIC_...=값" 묶음)을 통째로 붙여 넣었거나
+ * 공백·따옴표가 섞여도, sb_publishable_ / sb_secret_ / eyJ 로 시작하는 조각을 찾아 써요.
+ */
+export function cleanKey(v: string | undefined): string {
+  const parts = (v ?? "").split(/[\s"'`=,;]+/).filter(Boolean);
+  const i = parts.findIndex((p) => /^(sb_publishable_|sb_secret_|eyJ)/.test(p));
+  if (i < 0) return parts.join("");
+  // 키가 여러 줄로 끊겨 들어왔으면 이어 붙이고, 다른 설정 이름(NEXT_PUBLIC_… 등)이나 주소가 나오면 멈춰요
+  let key = parts[i];
+  for (const p of parts.slice(i + 1)) {
+    if (!/^[A-Za-z0-9_.-]+$/.test(p) || /^(NEXT_PUBLIC|SUPABASE|GROQ|DISCORD|TELEGRAM|LAB_URL|sb_|eyJ)/.test(p)) break;
+    key += p;
+  }
+  return key;
+}
+/** 주소도 https://로 시작하는 조각만, 끝의 / 나 /rest/v1 같은 꼬리는 떼요 */
+export function cleanUrl(v: string | undefined): string {
+  const parts = (v ?? "").split(/[\s"'`=,;]+/).filter(Boolean);
+  return (parts.find((p) => /^https?:\/\//.test(p)) ?? parts.join("")).replace(/\/(rest\/v1|auth\/v1)?\/?$/, "");
+}
 
 const PAGE = 1000;
 const CHUNK = 400;
