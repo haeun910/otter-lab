@@ -1,8 +1,8 @@
 // 화면에서 서버 API를 부르는 곳. 서버가 없거나(미리보기 파일) 키가 없으면 브라우저 안에서 대신 처리해요.
 import type { Blog, Deck, DraftType, NewsItem } from "../data/demo";
-import { writeAll, type LLM } from "./pipeline";
+import { type LLM } from "./pipeline";
+import { generate, type GenerateOptions } from "./generate";
 import type { DraftRequest } from "./prompt";
-import { templateBlog, templateDeck } from "./template";
 
 // 로그인한 배포에서는 서버 API에 로그인 토큰을 같이 보내요 (cloud/sync.ts가 채워 줘요)
 let tokenProvider: (() => Promise<string | null>) | null = null;
@@ -44,13 +44,12 @@ export const remoteLLM: LLM = async (messages, opts) => {
 
 const whyOf = (e: unknown): Written["why"] => (e instanceof AIError ? (e.status === 501 ? "nokey" : e.status === 0 || e.status === 404 ? "offline" : "error") : "error");
 
-export async function writeDraft(r: DraftRequest, onProgress?: (step: string) => void): Promise<Written> {
-  try {
-    const out = await writeAll(remoteLLM, r, onProgress);
-    return { ...out, engine: "groq" };
-  } catch (e) {
-    return { deck: templateDeck(r.type, r.items, r.brand), blog: templateBlog(r.type, r.items, Date.now(), r.brand), engine: "template", why: whyOf(e) };
-  }
+export async function writeDraft(r: DraftRequest, onProgress?: (step: string) => void, options: GenerateOptions = {}) {
+  return generate(remoteLLM, r, { ...options, onUpdate: (value) => {
+    if (value.cards.status === "running") onProgress?.("카드 문구 쓰는 중");
+    else if (value.blogState.status === "running") onProgress?.("블로그 쓰는 중");
+    options.onUpdate?.(value);
+  } });
 }
 
 /** 다시 쓰기: 실패하면 이유를 한국어로 */

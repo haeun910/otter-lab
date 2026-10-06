@@ -1,9 +1,8 @@
 "use client";
 import { useEffect } from "react";
-import PaintedMap from "./map/PaintedMap";
+import LabWorkspace from "./ui/LabWorkspace";
 import { staffLine } from "./staff";
 import { useLab } from "./store";
-import Hud from "./ui/Hud";
 import LoginGate from "./ui/LoginGate";
 import PanelHost from "./ui/PanelHost";
 import "./lab.css";
@@ -43,8 +42,7 @@ export default function OtterLab() {
 
   return (
     <div className="lab">
-      <PaintedMap />
-      <Hud />
+      <LabWorkspace />
       <PanelHost />
       <LoginGate />
     </div>

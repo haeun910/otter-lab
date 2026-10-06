@@ -70,6 +70,7 @@ interface LabState {
   toggleBasket: (link: string) => void;
   clearBasket: () => void;
   addDraft: (d: Draft) => void;
+  patchDraft: (id: string, patch: Partial<Draft>) => void;
   removeDraft: (id: string) => void;
   setCurrent: (id: string) => void;
   editCard: (draftId: string, index: number, patch: Partial<Card>) => void;
@@ -175,6 +176,7 @@ export const useLab = create<LabState>()(
         toggleBasket: (link) => set((s) => ({ basket: s.basket.includes(link) ? s.basket.filter((l) => l !== link) : [...s.basket, link] })),
         clearBasket: () => set({ basket: [] }),
         addDraft: (d) => set((s) => ({ drafts: [d, ...s.drafts], current: d.id })),
+        patchDraft: (id, patch) => patchDraft(id, (d) => ({ ...d, ...patch })),
         removeDraft: (id) =>
           set((s) => {
             const drafts = s.drafts.filter((d) => d.id !== id);

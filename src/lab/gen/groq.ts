@@ -1,5 +1,5 @@
 // 서버에서만 써요. GROQ_API_KEY는 브라우저로 내려가지 않아요.
-import type { Blog, Deck } from "../data/demo";
+import type { Blog, Deck, GenerationPart } from "../data/demo";
 import { parseJsonLoose } from "./normalize";
 import { writeAll, type LLM } from "./pipeline";
 import type { DraftRequest, Msg } from "./prompt";
@@ -78,6 +78,6 @@ async function chat(messages: Msg[], maxTokens?: number): Promise<unknown> {
 export const groqLLM: LLM = (messages, opts) => chat(messages, opts?.maxTokens);
 
 /** 카드(모모) 다음에 블로그(테오). 긴 블로그는 소제목별로 나눠 써요 */
-export async function writeWithGroq(r: DraftRequest): Promise<{ deck: Deck; blog: Blog; notes: string[] }> {
+export async function writeWithGroq(r: DraftRequest): Promise<{ deck: Deck; blog: Blog; notes: string[]; blogState: GenerationPart }> {
   return writeAll(groqLLM, r);
 }

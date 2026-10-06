@@ -19,7 +19,7 @@ function CloudBadge() {
 }
 
 /** 지금 한국 시간과 다음 회의. 회의 시간이 되면 연구원들을 마당으로 불러요 */
-function Clock() {
+export function Clock() {
   const [now, setNow] = useState(() => Date.now());
   const meetingAt = useLab((s) => s.schedule.meetingAt);
   const meetings = useLab((s) => s.meetings);

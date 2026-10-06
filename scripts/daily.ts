@@ -75,18 +75,18 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
   const problems: string[] = [];
   for (const [i, job] of jobs.entries()) {
     const req = { type: job.type, items: job.items, brand, prompts: { cards: staff.cards?.prompt, blog: staff.blog?.prompt } };
-    let out: Pick<Draft, "deck" | "blog" | "engine">;
+    let out: Pick<Draft, "deck" | "blog" | "engine" | "generation">;
     if (groqReady()) {
       try {
         const w = await writeWithGroq(req);
-        out = { deck: w.deck, blog: w.blog, engine: "groq" };
+        out = { deck: w.deck, blog: w.blog, engine: "groq", generation: { request: req, cards: { status: "complete", engine: "groq" }, blog: w.blogState } };
         problems.push(...w.notes.map((n) => `${job.type}: ${n}`));
       } catch (e) {
         problems.push(`${job.type} 초안은 Groq 연결이 안 돼서 뼈대로 썼어요 (${e instanceof Error ? e.message.slice(0, 80) : "오류"})`);
-        out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template" };
+        out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template", generation: { request: req, cards: { status: "failed", engine: "template", error: e instanceof Error ? e.message.slice(0, 240) : "Groq 생성 실패" }, blog: { status: "skipped", engine: "template" } } };
       }
     } else {
-      out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template" };
+      out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template", generation: { request: req, cards: { status: "failed", engine: "template", error: "GROQ_API_KEY가 없어요" }, blog: { status: "skipped", engine: "template" } } };
     }
     made.push({ id: `d${now.toString(36)}${i}`, type: job.type, createdAt: now + i, status: "검토 대기", sources: job.items.map((n) => n.link), ...out });
   }

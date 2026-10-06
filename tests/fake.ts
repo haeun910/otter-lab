@@ -63,8 +63,9 @@ export function install() {
         const n = Number(ask.match(/약 (\d+)자/)?.[1] ?? 500);
         return json({ choices: [{ message: { content: JSON.stringify({ body: "가".repeat(n) }) } }] });
       }
+      const bodyCount = Number(ask.match(/모두 (\d+)장/)?.[1] ?? ask.match(/body (\d+)장/)?.[1] ?? 1);
       const content = cards
-        ? JSON.stringify({ cards: [{ kind: "cover", title: "Groq 표지", body: "부제" }, { kind: "body", tag: "t", title: "본문", body: "줄" }, { kind: "outro", title: "정리", body: "- a" }], caption: "캡션", hashtags: ["AI"] })
+        ? JSON.stringify({ cards: [{ kind: "cover", title: "Groq 표지", body: "부제" }, ...Array.from({ length: bodyCount }, (_, i) => ({ kind: "body", tag: "t", title: `본문 ${i + 1}`, body: "줄" })), { kind: "outro", title: "정리", body: "- a" }], caption: "캡션", hashtags: ["AI"] })
         : JSON.stringify({ title: "Groq 블로그", intro: "i", sections: [{ heading: "h", body: "b" }], outro: "o", tags: ["AI"] });
       return json({ choices: [{ message: { content } }] });
     }

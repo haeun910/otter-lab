@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUILDINGS } from "../../data/buildings";
 import type { Draft, DraftType, NewsItem } from "../../data/demo";
-import { quotas, writeJob } from "../../company";
+import { quotas, writeJob, retryDraftPart } from "../../company";
 import { CATEGORIES, CATEGORY_INFO } from "../../news/category";
 import { aiFailText, fetchNews, fetchStatus, remoteLLM } from "../../gen/client";
 import { blogLength, rewriteDeck, rewriteSection } from "../../gen/pipeline";
@@ -92,7 +92,7 @@ function useDraft(onlyWaiting = false) {
   return { draft: pickCurrent(pool, current), pool };
 }
 
-function DraftPicker({ pool, draft }: { pool: Draft[]; draft?: Draft }) {
+function DraftPicker({ pool, draft, part = "cards" }: { pool: Draft[]; draft?: Draft; part?: "cards" | "blog" }) {
   const setCurrent = useLab((s) => s.setCurrent);
   if (!draft) return null;
   return (
@@ -106,7 +106,7 @@ function DraftPicker({ pool, draft }: { pool: Draft[]; draft?: Draft }) {
           </option>
         ))}
       </select>
-      <span className={`engine engine--${draft.engine}`}>{ENGINE[draft.engine]}</span>
+      <span className={`engine engine--${draft.engine}`}>{draft.generation ? draft.generation[part].status === "running" ? "작성 중" : draft.generation[part].status === "skipped" || draft.generation[part].status === "pending" ? "미생성" : draft.generation[part].status === "failed" ? "생성 실패" : draft.generation[part].status === "partial" ? "일부 실패" : draft.generation[part].engine === "groq" ? "Groq" : "뼈대" : ENGINE[draft.engine]}</span>
     </label>
   );
 }
@@ -118,7 +118,7 @@ function NoDraft({ text = "아직 초안이 없어요. 수신소에서 소식을
       <p className="empty">{text}</p>
       <footer className="pn__foot">
         <span />
-        <button className="btn btn--primary" onClick={() => travel("receiver")}>
+        <button className="btn btn--primary" onClick={() => { travel("receiver"); useLab.getState().openFocus(BUILDINGS.find((b) => b.id === "receiver")!.objects[0]); }}>
           수신소로 가기
         </button>
       </footer>
@@ -127,42 +127,57 @@ function NoDraft({ text = "아직 초안이 없어요. 수신소에서 소식을
 }
 
 // ---------- 담은 소식으로 초안 만들기 ----------
-async function makeDraft(type: DraftType) {
-  const st = useLab.getState();
-  if (st.busy) return;
-  const byLink = new Map(st.library.map((n) => [n.link, n]));
-  const items = st.basket.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n));
-  if (!items.length) return;
-  st.clearBasket();
-  await writeJob(type, type === "심층" ? items.slice(0, 1) : items.slice(0, BUNDLE_MAX));
+function BasketFoot() {
+  const st = useLab();
+  const [review, setReview] = useState(false);
+  const [target, setTarget] = useState<"cards" | "both">("cards");
+  const [bodyCount, setBodyCount] = useState(writingOf(st.brand).deepCards);
+  const [tone, setTone] = useState("");
+  const [error, setError] = useState("");
+  const items = st.basket.map((link) => st.library.find((n) => n.link === link)).filter((n): n is NewsItem => Boolean(n));
+  const type: DraftType = items.length === 1 ? "심층" : "묶음";
+  const total = (type === "심층" ? bodyCount : items.length) + 2;
+  const valid = items.length > 0 && items.length <= BUNDLE_MAX && items.length === st.basket.length;
+  const request: DraftRequest = { type, items, brand: { ...st.brand, ...(type === "심층" ? { deepTone: tone.trim() || st.brand.deepTone } : { tone: tone.trim() || st.brand.tone }), writing: { ...writingOf(st.brand), deepCards: bodyCount } }, prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt } };
+  return <section className="generation-form" aria-label="카드뉴스 생성 요청">
+    <div className="pn__foot"><span className="muted">{items.length ? `${items.length}개 소식 선택 · ${type} 카드뉴스` : "소식 1개는 심층, 2~6개는 묶음 카드뉴스"}</span><div className="row"><button className="btn btn--light" disabled={!items.length || !!st.busy} onClick={() => { st.clearBasket(); setReview(false); }}>선택 비우기</button><button className="btn btn--primary" disabled={!valid || !!st.busy} onClick={() => { setReview(!review); setError(""); }}>{review ? "요청 접기" : "카드뉴스 만들기"}</button></div></div>
+    {review && <div className="generation-form__review">
+      <h3>모모에게 보낼 요청 확인</h3><ul>{items.map((n) => <li key={n.link}>{n.title} <small>· {n.source}</small></li>)}</ul>
+      <div className="form2"><label className="field"><span>만들 결과</span><select value={target} onChange={(e) => setTarget(e.target.value as "cards" | "both")}><option value="cards">카드뉴스만 만들기</option><option value="both">카드뉴스 + 블로그</option></select></label>
+      {type === "심층" ? <label className="field"><span>카드 장수 (표지·정리 포함)</span><select value={bodyCount} onChange={(e) => setBodyCount(Number(e.target.value))}>{[3,4,5,6].map((n) => <option key={n} value={n}>{n + 2}장 · 본문 {n}장</option>)}</select></label> : <p className="muted">총 {total}장 · 표지 1 + 소식 {items.length} + 정리 1</p>}
+      <label className="field"><span>말투</span><input value={tone} placeholder={type === "심층" ? st.brand.deepTone : st.brand.tone} onChange={(e) => setTone(e.target.value)} /></label></div>
+      <p className="muted">주제는 위 소식을 바탕으로 작성합니다. 총 {total}장 · {tone.trim() || (type === "심층" ? st.brand.deepTone : st.brand.tone)}. 실패한 생성은 완료로 표시하지 않습니다.</p>
+      {error && <p role="alert">{error}</p>}
+      <button className="btn btn--primary" disabled={!valid || !!st.busy} onClick={async () => {
+        setError("");
+        try {
+          const draft = await writeJob(type, items, undefined, { target, request });
+          if (!draft) return;
+          if (draft.generation?.cards.status === "complete") useLab.getState().clearBasket();
+          const s = useLab.getState(); s.travel("cards"); s.openFocus(BUILDINGS.find((b) => b.id === "cards")!.objects[0]);
+        } catch (e) { setError(e instanceof Error ? e.message : "생성 실패"); }
+      }}>{st.busy === "draft" ? "작성 중…" : target === "cards" ? `확인 · 카드 ${total}장 생성` : `확인 · 카드 ${total}장과 블로그 생성`}</button>
+    </div>}
+  </section>;
 }
 
-function BasketFoot() {
-  const basket = useLab((s) => s.basket);
+function GenerationStatus({ draft, part }: { draft: Draft; part: "cards" | "blog" }) {
   const busy = useLab((s) => s.busy);
-  const clear = useLab((s) => s.clearBasket);
-  const n = basket.length;
-  const writing = busy === "draft";
-  return (
-    <footer className="pn__foot">
-      <span className="muted">
-        {writing ? "초안을 쓰는 중이에요…" : n ? `${n}개 담았어요` : "소식 하나는 심층, 여러 개(2~6개)는 묶음 카드뉴스가 돼요"}
-        {n > 0 && !writing && (
-          <button className="link-btn" onClick={clear}>
-            비우기
-          </button>
-        )}
-      </span>
-      <div className="row">
-        <button className="btn btn--light" disabled={n !== 1 || !!busy} onClick={() => makeDraft("심층")}>
-          심층 초안
-        </button>
-        <button className="btn btn--primary" disabled={n < 2 || n > BUNDLE_MAX || !!busy} onClick={() => makeDraft("묶음")}>
-          {n > BUNDLE_MAX ? `묶음은 ${BUNDLE_MAX}개까지` : "묶음 초안"}
-        </button>
-      </div>
-    </footer>
-  );
+  const [error, setError] = useState("");
+  const g = draft.generation;
+  if (!g) return null;
+  const state = g[part];
+  const labels = { pending: "대기", running: "작성 중", complete: "AI 생성 완료", partial: "일부 작성 실패", failed: "생성 실패", skipped: "생성하지 않음" };
+  const expected = g.request.type === "심층" ? writingOf(g.request.brand).deepCards + 2 : g.request.items.length + 2;
+  return <section className={`generation-status generation-status--${state.status}`} aria-label={`${part === "cards" ? "카드" : "블로그"} 생성 상태`}>
+    <strong>{part === "cards" ? "모모 · 카드뉴스" : "테오 · 블로그"} — {state.status === "running" && !busy ? "작업 중단 · 재시도 필요" : labels[state.status]}</strong>
+    <p>요청: {g.request.items.map((n) => n.title).join(" / ")} · 카드 {expected}장 · {g.request.type === "심층" ? g.request.brand.deepTone : g.request.brand.tone}</p>
+    {state.error && <p role="alert">{state.error}</p>}
+    {state.status === "failed" && <p>{state.engine === "groq" ? "이전 AI 결과를 보존했습니다." : part === "cards" ? "아래는 AI 결과가 아닌 편집용 뼈대입니다." : "다른 작업에서 완성한 카드는 그대로 보존했습니다."}</p>}
+    {state.status === "partial" && <p>작성된 부분은 보존되어 있어요. 전체 블로그 재시도는 현재 원고를 교체합니다.</p>}
+    {(state.status === "failed" || state.status === "skipped" || state.status === "partial" || state.status === "running" && !busy) && draft.status !== "게시함" && <button className="btn btn--light" disabled={!!busy} onClick={async () => { setError(""); try { await retryDraftPart(draft, part); } catch (e) { setError(e instanceof Error ? e.message : "재시도 실패"); } }}>{part === "cards" ? "카드만 다시 생성" : state.status === "skipped" ? "블로그 추가 생성" : "블로그만 다시 생성"}</button>}
+    {error && <p role="alert">{error}</p>}
+  </section>;
 }
 
 function NewsRow({ n, compact }: { n: NewsItem; compact?: boolean }) {
@@ -240,6 +255,7 @@ export function InboxPanel() {
 // ---------- 카드 편집 ----------
 /** 초안을 다시 쓸 때 AI에게 줄 재료 (바탕 소식·브랜드·지시문) */
 function requestFor(d: Draft): DraftRequest {
+  if (d.generation?.request) return d.generation.request;
   const st = useLab.getState();
   const byLink = new Map(st.library.map((n) => [n.link, n]));
   return {
@@ -322,6 +338,8 @@ export function CardEditorPanel() {
         <DraftPicker pool={pool} draft={draft} />
         <span className="muted">카드 {cards.length}장</span>
       </div>
+      <GenerationStatus draft={draft} part="cards" />
+      <fieldset className="generation-edit" disabled={draft.generation?.cards.status === "running" && useLab.getState().busy === "draft"}>
       <div className="strip" role="list">
         {cards.map((c, k) => (
           <button
@@ -392,6 +410,7 @@ export function CardEditorPanel() {
           />
         </div>
       </div>
+      </fieldset>
     </div>
   );
 }
@@ -490,13 +509,14 @@ export function BlogPanel() {
   return (
     <div className="pn">
       <div className="pn__bar">
-        <DraftPicker pool={pool} draft={draft} />
+        <DraftPicker pool={pool} draft={draft} part="blog" />
         <span className={`count ${len < target * 0.7 ? "count--short" : ""}`} title="공백 포함, 제목 제외">
           {len.toLocaleString()}자 <span className="muted">/ 목표 {target.toLocaleString()}자</span>
         </span>
         <Seg value={mode} options={["보기", "고치기"] as const} onChange={setMode} label="보기 방식" />
       </div>
-      {mode === "보기" ? (
+      <GenerationStatus draft={draft} part="blog" />
+      {draft.generation && ["skipped", "pending", "running", "failed"].includes(draft.generation.blog.status) && !b.title ? <p className="empty">블로그 원고는 아직 생성되지 않았습니다. 완성된 카드는 공방에서 확인하세요.</p> : mode === "보기" ? (
         <article className="paper">
           <h3>{b.title}</h3>
           <p>{b.intro}</p>
@@ -1281,7 +1301,7 @@ export function DraftsPanel() {
         <span className="muted">
           검토 대기 {drafts.filter((d) => d.status === "검토 대기").length}개, 게시함 {drafts.filter((d) => d.status === "게시함").length}개
         </span>
-        <button className="btn btn--primary" onClick={() => travel("receiver")}>
+        <button className="btn btn--primary" onClick={() => { travel("receiver"); useLab.getState().openFocus(BUILDINGS.find((b) => b.id === "receiver")!.objects[0]); }}>
           새 초안 만들러 가기
         </button>
       </footer>

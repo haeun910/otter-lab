@@ -4,7 +4,10 @@ import { byId } from "./data/buildings";
 import { jobsFrom, kstDay, meetingNotes, statsReport } from "./agenda";
 import type { Draft, DraftType, NewsItem } from "./data/demo";
 import { fetchNews, writeDraft } from "./gen/client";
-import { draftLabel, useLab } from "./store";
+import { useLab } from "./store";
+import { templateDeck } from "./gen/template";
+import type { GenerationTarget } from "./gen/generate";
+import type { DraftRequest } from "./gen/prompt";
 
 // ---------- 회의 진행 ----------
 let gatherTimer: ReturnType<typeof setTimeout> | undefined;
@@ -79,51 +82,50 @@ export async function closeMeeting(dec: Decision | null) {
   for (const job of jobs) await writeJob(job.type, job.items, meetingId);
 }
 
-/** 모모(카드)와 테오(블로그)가 초안 한 건을 써요 */
-export async function writeJob(type: DraftType, items: NewsItem[], meetingId?: string) {
+/** Parts are saved independently; a blog failure cannot replace the cards. */
+export async function writeJob(type: DraftType, items: NewsItem[], meetingId?: string, options: { target?: GenerationTarget; request?: DraftRequest; draftId?: string } = {}) {
   const st = useLab.getState();
-  st.setBusy("draft");
-  st.setWriting("cards", true);
-  st.setWriting("blog", true);
-  try {
-    const w = await writeDraft(
-      {
-        type,
-        items,
-        brand: st.brand,
-        prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt },
-      },
-      (step) => useLab.getState().say(`${type} 초안: ${step}…`),
-    );
-    const now = Date.now();
-    const draft: Draft = {
-      id: `d${now.toString(36)}`,
-      type,
-      createdAt: now,
-      status: "검토 대기",
-      engine: w.engine,
-      sources: items.map((n) => n.link),
-      deck: w.deck,
-      blog: w.blog,
-    };
-    useLab.getState().addDraft(draft);
-    if (meetingId) useLab.setState((s) => ({ meetings: s.meetings.map((m) => (m.id === meetingId ? { ...m, drafts: [...m.drafts, draft.id] } : m)) }));
-    const why =
-      w.engine === "groq"
-        ? w.notes?.length
-          ? ` (${w.notes.length}곳은 직접 채워 주세요)`
-          : ""
-        : w.why === "nokey"
-          ? " (Groq 키가 없어 뼈대 초안)"
-          : w.why === "error"
-            ? " (Groq 연결 실패로 뼈대 초안)"
-            : " (서버 없이 뼈대 초안)";
-    useLab.getState().say(`${type} 초안 '${draftLabel(draft)}'이 나왔어요${why}. 카드뉴스 공방에서 확인해 보세요.`);
-    return draft;
-  } finally {
-    const s = useLab.getState();
-    s.setBusy(null);
-    s.setWriting("cards", false);
-    s.setWriting("blog", false);
+  if (st.busy || !items.length) return;
+  const target = options.target ?? "both";
+  const request = structuredClone(options.request ?? { type, items, brand: st.brand, prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt } });
+  const previous = options.draftId ? st.drafts.find((d) => d.id === options.draftId) : undefined;
+  if (options.draftId && (!previous || previous.status === "게시함")) return;
+  const now = Date.now();
+  const draft: Draft = previous ?? {
+    id: `d${now.toString(36)}`, type, createdAt: now, status: "검토 대기", engine: "template",
+    sources: items.map((n) => n.link), deck: templateDeck(type, items, request.brand),
+    blog: { title: "", intro: "", sections: [], outro: "", tags: [] },
+    generation: { request, cards: { status: "pending", engine: "template" }, blog: { status: target === "cards" ? "skipped" : "pending" } },
+  };
+  if (!previous) {
+    st.addDraft(draft);
+    if (meetingId) useLab.setState((s) => ({ meetings: s.meetings.map((m) => m.id === meetingId ? { ...m, drafts: [...m.drafts, draft.id] } : m) }));
   }
+  let lastDeck = draft.deck;
+  let lastBlog = draft.blog;
+  st.setBusy("draft");
+  try {
+    await writeDraft(request, undefined, {
+      target,
+      ...(previous ? { previous: { deck: previous.deck, blog: previous.blog, cards: previous.generation?.cards ?? { status: "complete" as const, engine: previous.engine === "groq" ? "groq" as const : "template" as const }, blogState: previous.generation?.blog ?? { status: "complete" as const } } } : {}),
+      onUpdate: (value) => {
+        const s = useLab.getState();
+        s.setWriting("cards", value.cards.status === "running");
+        s.setWriting("blog", value.blogState.status === "running");
+        s.patchDraft(draft.id, { ...(value.deck !== lastDeck ? { deck: value.deck } : {}), ...(value.blog !== lastBlog ? { blog: value.blog } : {}), engine: value.cards.engine ?? "template", generation: { request, cards: value.cards, blog: value.blogState } });
+        lastDeck = value.deck; lastBlog = value.blog;
+      },
+    });
+    const result = useLab.getState().drafts.find((d) => d.id === draft.id)!;
+    st.say(result.generation?.cards.status === "failed" || result.generation?.blog.status === "failed" ? "생성하지 못한 작업이 있어요. 초안에서 이유를 확인하고 해당 작업만 다시 시도해 주세요." : "요청한 작업을 마쳤어요. 초안을 확인해 주세요.");
+    return result;
+  } finally {
+    const s = useLab.getState(); s.setBusy(null); s.setWriting("cards", false); s.setWriting("blog", false);
+  }
+}
+
+export async function retryDraftPart(draft: Draft, target: "cards" | "blog") {
+  const request = draft.generation?.request;
+  if (!request) return;
+  return writeJob(draft.type, request.items, undefined, { target, request, draftId: draft.id });
 }

@@ -1,7 +1,7 @@
 // 초안 쓰는 순서. AI를 부르는 방법(llm)만 바꿔 끼우면 자동 회의(서버에서 Groq 직접)와
 // 연구소 화면(/api/ai를 한 번씩)이 같은 순서로 써요. 긴 블로그는 설계도 → 소제목별로 나눠 써서
 // Groq 분당 한도와 Vercel 60초 제한에 덜 걸려요.
-import type { Blog, Deck } from "../data/demo";
+import type { Blog, Deck, GenerationPart } from "../data/demo";
 import { normalizeBlog, normalizeDeck } from "./normalize";
 import {
   blogMessages,
@@ -26,7 +26,18 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\\n/g, "\
 export const SPLIT_FROM = 2000;
 
 export async function writeDeck(llm: LLM, r: DraftRequest): Promise<Deck> {
-  return normalizeDeck(await llm(cardsMessages(r), { maxTokens: 2500 }), templateDeck(r.type, r.items, r.brand));
+  const raw = await llm(cardsMessages(r), { maxTokens: 2500 });
+  const cards = (raw as { cards?: unknown[] } | null)?.cards;
+  const expected = templateDeck(r.type, r.items, r.brand).cards.length;
+  if (!Array.isArray(cards) || cards.length !== expected) throw new Error(`카드 장수가 요청과 달라요 (요청 ${expected}장). 다시 생성해 주세요.`);
+  for (const [i, value] of cards.entries()) {
+    const c = value as { kind?: string; title?: string; body?: string } | null;
+    const kind = i === 0 ? "cover" : i === cards.length - 1 ? "outro" : "body";
+    if (c?.kind !== kind || typeof c.title !== "string" || !c.title.trim() || typeof c.body !== "string" || !c.body.trim()) throw new Error(`${i + 1}번째 카드의 구성이나 내용이 비어 있어요. 다시 생성해 주세요.`);
+  }
+  const deck = raw as Deck;
+  if (typeof deck.caption !== "string" || !deck.caption.trim() || !Array.isArray(deck.hashtags) || !deck.hashtags.some((t) => typeof t === "string" && t.trim())) throw new Error("AI가 캡션이나 해시태그를 빠뜨렸어요. 다시 생성해 주세요.");
+  return normalizeDeck(raw, templateDeck(r.type, r.items, r.brand));
 }
 
 export interface BlogResult {
@@ -71,11 +82,16 @@ export async function writeBlog(llm: LLM, r: DraftRequest, onProgress?: (done: n
 }
 
 /** 카드(모모) 다음에 블로그(테오) */
-export async function writeAll(llm: LLM, r: DraftRequest, onProgress?: (step: string) => void): Promise<{ deck: Deck; blog: Blog; notes: string[] }> {
+export async function writeAll(llm: LLM, r: DraftRequest, onProgress?: (step: string) => void): Promise<{ deck: Deck; blog: Blog; notes: string[]; blogState: GenerationPart }> {
   onProgress?.("카드 문구 쓰는 중");
   const deck = await writeDeck(llm, r);
-  const { blog, notes } = await writeBlog(llm, r, (d, t) => onProgress?.(t > 1 ? `블로그 쓰는 중 (${d}/${t})` : "블로그 쓰는 중"));
-  return { deck, blog, notes };
+  try {
+    const { blog, notes } = await writeBlog(llm, r, (d, t) => onProgress?.(t > 1 ? `블로그 쓰는 중 (${d}/${t})` : "블로그 쓰는 중"));
+    return { deck, blog, notes, blogState: { status: notes.length ? "partial" : "complete", engine: "groq", ...(notes.length ? { error: notes.join("\n") } : {}) } };
+  } catch (e) {
+    const error = e instanceof Error ? e.message.slice(0, 120) : "오류";
+    return { deck, blog: templateBlog(r.type, r.items, Date.now(), r.brand), notes: [`블로그 생성 실패 · 카드 결과는 보존했어요 (${error})`], blogState: { status: "failed", engine: "template", error } };
+  }
 }
 
 export async function rewriteDeck(llm: LLM, r: DraftRequest, deck: Deck, instruction: string): Promise<Deck> {
