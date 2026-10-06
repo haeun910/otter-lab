@@ -10,6 +10,13 @@ export function OtterFace({ size = 32 }: { size?: number }) {
   return <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden="true" dangerouslySetInnerHTML={{ __html: OTTER_SVG_INNER }} />;
 }
 
+/** 저장 상태: Supabase에 저장 중인지, 이 브라우저에만 저장하는지 */
+function CloudBadge() {
+  const cloud = useLab((s) => s.cloud);
+  const label = { off: "이 브라우저에만 저장", saving: "저장 중…", saved: "클라우드 저장됨", error: "저장 실패, 다시 시도 중" }[cloud];
+  return <em className={`cloud cloud--${cloud}`}>{label}</em>;
+}
+
 /** 지금 한국 시간과 다음 회의. 회의 시간이 되면 연구원들을 회의실로 불러요 */
 function Clock() {
   const [now, setNow] = useState(() => Date.now());
@@ -64,7 +71,9 @@ export default function Hud() {
           <OtterFace size={34} />
           <div>
             <strong>Otter Lab</strong>
-            <span>{where}</span>
+            <span>
+              {where} · <CloudBadge />
+            </span>
           </div>
         </div>
         <div className="hud-actions">

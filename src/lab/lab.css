@@ -1567,6 +1567,14 @@ body {
   line-height: 1.6;
 }
 
+.cloud {
+  font-style: normal;
+}
+.cloud--off,
+.cloud--error {
+  color: var(--coral-deep);
+}
+
 /* ---------- 로그인 ---------- */
 .gate {
   position: fixed;

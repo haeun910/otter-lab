@@ -8,10 +8,14 @@ export const GOOGLE_LOGIN = process.env.NEXT_PUBLIC_LOGIN_GOOGLE === "1";
 export const cloudConfigured = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 /** 화면에 보여 줄 연결 정보 (publishable 키는 공개용이라 앞부분을 보여 줘도 괜찮아요) */
-export const connectionInfo = () => ({
-  url: SUPABASE_URL,
-  key: `${SUPABASE_ANON_KEY.slice(0, SUPABASE_ANON_KEY.startsWith("eyJ") ? 12 : 22)}… (${SUPABASE_ANON_KEY.length}자)`,
-});
+export const connectionInfo = () => {
+  const secret = SUPABASE_ANON_KEY.startsWith("sb_secret_") || jwtClaims(SUPABASE_ANON_KEY)?.role === "service_role";
+  return {
+    url: SUPABASE_URL,
+    // 비밀 키가 잘못 들어갔으면 앞부분도 보여 주지 않아요
+    key: secret ? "(비밀 키라서 가렸어요)" : `${SUPABASE_ANON_KEY.slice(0, SUPABASE_ANON_KEY.startsWith("eyJ") ? 12 : 22)}… (${SUPABASE_ANON_KEY.length}자)`,
+  };
+};
 
 /** 예전 키(JWT)는 안에 프로젝트 이름과 권한이 적혀 있어요 */
 function jwtClaims(key: string): { ref?: string; role?: string } | null {
