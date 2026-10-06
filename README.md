@@ -15,7 +15,8 @@
 | 6    | GitHub Actions 매일 자동 회의(묶음 1 + 심층 1) + 디스코드·텔레그램 알림                                                                                                   | 완료 (연결은 [SETUP.md](SETUP.md)) |
 | 7    | 카드뉴스 테마 3종(오터 파스텔·뉴스룸·매거진)·포인트 색·제목 글꼴·세로/정사각, 카드 장수, 블로그 길이(최대 6,000자, 긴 글은 소제목별로 나눠 쓰기), 사진 자리, AI 다시 쓰기 | 완료 (소장 책상에서 설정)          |
 | 8    | 손그림 지도(2.5D)로 화면 바꾸기                                                                                                                                           | 완료                               |
-| 9    | 인스타그램 자동 게시, 성과 수치 자동 수집                                                                                                                                 | 예정                               |
+| 9    | 소식 5분야(AI·Tech·Dev·Paper·Tools), 출처 25곳(국내·해외 반반), 분야 비율대로 회의 추천, 분야별 글쓰기                                                                    | 완료 (분야 비율은 소장 책상에서)   |
+| 10   | 인스타그램 자동 게시, 성과 수치 자동 수집                                                                                                                                 | 다음                               |
 
 계정을 연결하는 순서는 **[SETUP.md](SETUP.md)** 에 있어요. 연결하기 전에는 지금처럼 이 브라우저에만 저장돼요.
 
@@ -74,6 +75,7 @@ npm run typecheck
 npm test                     # 자동 회의·동기화·로그인 문지기 (가짜 서버로)
 npm run daily                # 자동 회의 한 번 (FORCE=1이면 시간과 상관없이)
 npm run preview:build        # 단일 HTML 파일: preview/dist/index.html
+npm run feeds:check          # 소식 출처마다 실제로 받아지는지 점검 (GitHub Actions "소식 출처 점검"으로도)
 ```
 
 미리보기 HTML 파일은 서버가 없어서 `새 소식 받기`가 안 되고, 초안은 항상 뼈대로 만들어져요. 나머지(편집·인쇄·저장)는 똑같이 돼요.
@@ -96,7 +98,7 @@ src/lab/
   assets/otter-map.webp 손그림 지도 그림 (1536×1024)
   staff.ts              연구원들이 하는 말
   data/demo.ts          데이터 모양(Draft, Post…)과 처음 보이는 예시 데이터
-  news/                 피드 목록, RSS·Atom 읽기
+  news/                 출처 목록(feeds), 분야 규칙(category), RSS·Atom·Hugging Face·GitHub 읽기, 애매한 분야 AI에게 묻기
   gen/                  초안 쓰기: 지시문(prompt), 쓰는 순서(pipeline), Groq 호출, 뼈대 초안, AI 답 다듬기
   render/cardImage.ts   카드뉴스 그리기 (테마 3종, 미리보기와 PNG가 같은 함수), 저장·공유
   agenda.ts             회의 안건 (시계, 추천 소식, 성과 보고, 회의록)
