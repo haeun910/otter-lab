@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { writingOf } from "../../gen/prompt";
 import { closeMeeting, fmtHM, heldToday, parseHM, recommend, startMeeting, statsReport } from "../../company";
 import { draftLabel, useLab } from "../../store";
 
@@ -61,7 +62,8 @@ function Agenda() {
   const drafts = useLab((s) => s.drafts);
   const posts = useLab((s) => s.posts);
   // 회의를 연 순간의 추천을 그대로 써요 (회의 중에 목록이 흔들리지 않게)
-  const [picks] = useState(() => recommend(library, inbox, drafts));
+  const bundleCount = useLab((s) => writingOf(s.brand).bundleCount);
+  const [picks] = useState(() => recommend(library, inbox, drafts, bundleCount));
   const [bundle, setBundle] = useState<string[]>(picks.bundle);
   const [deep, setDeep] = useState<string | null>(picks.deep);
   const [memo, setMemo] = useState("");

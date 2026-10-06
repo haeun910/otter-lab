@@ -1,7 +1,7 @@
 // AI 없이 소식 제목·요약만으로 뼈대 초안을 만들어요.
 // Groq 키가 없거나 연결이 안 될 때 대신 쓰고, 소장님이 다듬는 걸 전제로 해요.
 import type { Blog, Card, Deck, DraftType, NewsItem } from "../data/demo";
-import type { BrandVoice } from "./prompt";
+import { deepTags, writingOf, type BrandVoice } from "./prompt";
 
 /** 문장 단위로 자르고, 글자 수를 넘지 않게 묶어요 */
 export function sentences(text: string): string[] {
@@ -59,11 +59,15 @@ export function templateDeck(type: DraftType, items: NewsItem[], brand: BrandVoi
   if (type === "심층") {
     const n = items[0];
     const ss = sentences(n.excerpt);
+    // 설정한 장수만큼, 꼬리표 차례에 맞춰 (요약 문장은 앞 카드부터 두 문장씩)
+    const tags = deepTags(writingOf(brand).deepCards);
+    const body = tags.map((tag, i): Card => {
+      const part = ss.slice(i * 2, i * 2 + 2).map((s) => clip(s, 46)).join("\n");
+      return { kind: "body", tag, title: i === 0 ? short[0] : tag.replace(/\?$/, ""), body: part || "원문에서 이 부분에 맞는 내용을 골라 넣어 주세요." };
+    });
     const cards: Card[] = [
       { kind: "cover", title: clip(tidyTitle(n.title), 30), body: `${n.source} 소식을 한 장씩 풀어 봤어요` },
-      { kind: "body", tag: "무슨 일이야?", title: short[0], body: ss.slice(0, 2).map((s) => clip(s, 46)).join("\n") || "원문 요약을 넣어 주세요." },
-      { kind: "body", tag: "더 자세히", title: "핵심만 짚어 보면", body: ss.slice(2, 4).map((s) => clip(s, 46)).join("\n") || "원문에서 중요한 대목을 골라 넣어 주세요." },
-      { kind: "body", tag: "왜 중요해?", title: "우리에게 주는 의미", body: "이 소식이 왜 중요한지 한두 줄로 적어 주세요." },
+      ...body,
       { kind: "outro", title: "한 줄 정리", body: `- ${short[0]}\n- 자세한 내용은 ${n.source} 원문에서` },
     ];
     return {
@@ -84,11 +88,13 @@ export function templateDeck(type: DraftType, items: NewsItem[], brand: BrandVoi
   };
 }
 
-export function templateBlog(type: DraftType, items: NewsItem[], now = Date.now()): Blog {
+export function templateBlog(type: DraftType, items: NewsItem[], now = Date.now(), brand?: BrandVoice): Blog {
   const day = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", timeZone: "Asia/Seoul" }).format(now);
+  const photos = brand ? writingOf(brand).photos : false;
   const section = (n: NewsItem) => ({
     heading: tidyTitle(n.title),
     body: `${sentences(n.excerpt).join(" ") || "원문 요약을 넣어 주세요."}\n\n제 생각에는 (의견을 한두 문장 적어 주세요)\n출처: ${n.source} (${n.link})`,
+    ...(photos ? { photo: `${n.source} 기사 대표 사진 또는 관련 화면` } : {}),
   });
   if (type === "심층") {
     const n = items[0];

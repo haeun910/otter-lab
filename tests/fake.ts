@@ -56,6 +56,13 @@ export function install() {
       if (!["openai/gpt-oss-120b", "qwen/qwen3.6-27b"].includes(body.model))
         return json({ error: { message: `The model \`${body.model}\` does not exist or you do not have access to it.`, code: "model_not_found" } }, 404);
       const cards = body.messages[0].content.includes("카드뉴스");
+      const ask = body.messages[1].content as string;
+      if (ask.includes("설계도"))
+        return json({ choices: [{ message: { content: JSON.stringify({ title: "긴 글", intro: "도입", sections: [1, 2, 3, 4, 5, 6].map((k) => ({ heading: `소제목 ${k}`, points: `내용 ${k}`, photo: `사진 ${k}` })), outro: "맺음", tags: ["AI"] }) } }] });
+      if (ask.includes("소제목 하나를 써 줘")) {
+        const n = Number(ask.match(/약 (\d+)자/)?.[1] ?? 500);
+        return json({ choices: [{ message: { content: JSON.stringify({ body: "가".repeat(n) }) } }] });
+      }
       const content = cards
         ? JSON.stringify({ cards: [{ kind: "cover", title: "Groq 표지", body: "부제" }, { kind: "body", tag: "t", title: "본문", body: "줄" }, { kind: "outro", title: "정리", body: "- a" }], caption: "캡션", hashtags: ["AI"] })
         : JSON.stringify({ title: "Groq 블로그", intro: "i", sections: [{ heading: "h", body: "b" }], outro: "o", tags: ["AI"] });

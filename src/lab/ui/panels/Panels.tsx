@@ -3,9 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BUILDINGS } from "../../data/buildings";
 import type { Draft, DraftType, NewsItem } from "../../data/demo";
 import { writeJob } from "../../company";
-import { fetchNews, fetchStatus } from "../../gen/client";
+import { aiFailText, fetchNews, fetchStatus, remoteLLM } from "../../gen/client";
+import { blogLength, rewriteDeck, rewriteSection } from "../../gen/pipeline";
+import { LENGTHS, blogTarget, designOf, writingOf, type CardDesign, type DraftRequest, type WritingPlan } from "../../gen/prompt";
 import { DEFAULT_PROMPTS } from "../../gen/prompt";
-import { draftImages, saveFiles } from "../../render/cardImage";
+import { ACCENTS, FONTS, THEMES, draftImages, saveFiles } from "../../render/cardImage";
 import { draftLabel, pickCurrent, useLab, type SavedData } from "../../store";
 import CardPreview from "../CardPreview";
 
@@ -226,6 +228,60 @@ export function InboxPanel() {
 }
 
 // ---------- 카드 편집 ----------
+/** 초안을 다시 쓸 때 AI에게 줄 재료 (바탕 소식·브랜드·지시문) */
+function requestFor(d: Draft): DraftRequest {
+  const st = useLab.getState();
+  const byLink = new Map(st.library.map((n) => [n.link, n]));
+  return {
+    type: d.type,
+    items: d.sources.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n)),
+    brand: st.brand,
+    prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt },
+  };
+}
+
+/** AI에게 다시 쓰게 하기: 자주 쓰는 요청은 버튼으로, 나머지는 직접 */
+function RewriteBox({ id, chips, label, onRun }: { id: string; chips: string[]; label: string; onRun: (instruction: string) => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const run = async (instruction: string) => {
+    if (!instruction.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onRun(instruction.trim());
+      setText("");
+    } catch (e) {
+      useLab.getState().say(aiFailText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rewrite">
+      <span className="rewrite__label">{busy ? "다시 쓰는 중…" : label}</span>
+      <div className="rewrite__chips">
+        {chips.map((c) => (
+          <button key={c} className="chip-btn" disabled={busy} onClick={() => run(c)}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <form
+        className="rewrite__own"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(text);
+        }}
+      >
+        <input id={id} aria-label="직접 요청하기" placeholder="직접 요청 (예: 숫자를 더 강조해 줘)" value={text} onChange={(e) => setText(e.target.value)} disabled={busy} />
+        <button className="btn btn--light" type="submit" disabled={busy || !text.trim()}>
+          다시 쓰기
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export function CardEditorPanel() {
   const { draft, pool } = useDraft();
   const brand = useLab((s) => s.brand);
@@ -295,6 +351,16 @@ export function CardEditorPanel() {
             <textarea id={`cap-${id}`} rows={5} value={draft.deck.caption} onChange={(e) => editDeck(id, { caption: e.target.value })} />
           </label>
           <ListField id={`hash-${id}`} label="해시태그 (띄어쓰기로 구분)" value={draft.deck.hashtags} sep=" " onCommit={(v) => editDeck(id, { hashtags: v.map((t) => t.replace(/^#*/, "#")) })} />
+          <RewriteBox
+            id={`rw-deck-${id}`}
+            label="카드 문구 전체를 AI에게 다시 쓰게 하기 (장수는 그대로)"
+            chips={["더 짧고 굵게", "더 쉽게", "더 흥미롭게", "숫자 강조", "전문가 말투"]}
+            onRun={async (instruction) => {
+              const next = await rewriteDeck(remoteLLM, requestFor(draft), draft.deck, instruction);
+              editDeck(id, next);
+              useLab.getState().say(`카드 문구를 다시 썼어요 (${instruction}).`);
+            }}
+          />
         </div>
       </div>
     </div>
@@ -307,9 +373,10 @@ async function printDraft(d: Draft, only?: number): Promise<File[]> {
   if (st.busy) return [];
   st.setBusy("print");
   try {
-    const files = await draftImages(d, { handle: st.brand.handle, series: st.brand.series }, only);
+    const files = await draftImages(d, st.brand, only);
     const how = await saveFiles(files);
-    if (how !== "cancelled") st.say(how === "shared" ? `카드 ${files.length}장을 보냈어요.` : `카드 ${files.length}장을 1080×1350 이미지로 뽑았어요.`);
+    const size = designOf(st.brand).size === "square" ? "1080×1080" : "1080×1350";
+    if (how !== "cancelled") st.say(how === "shared" ? `카드 ${files.length}장을 보냈어요.` : `카드 ${files.length}장을 ${size} 이미지로 뽑았어요.`);
     return files;
   } catch {
     st.say("이미지를 만들지 못했어요. 다시 한번 눌러 주세요.");
@@ -352,13 +419,13 @@ export function PrinterPanel() {
           <p className="muted">파일이 저장되지 않았다면 이미지를 길게 누르거나 오른쪽 클릭해서 저장하세요.</p>
           <div className="print__grid">
             {prints.map((p) => (
-              <img key={p.url} src={p.url} alt={p.name} width={1080} height={1350} />
+              <img key={p.url} src={p.url} alt={p.name} />
             ))}
           </div>
         </section>
       )}
       <footer className="pn__foot">
-        <span className="muted">1080×1350 PNG로 뽑아요. 휴대폰에서는 공유 창이 열려 사진에 저장할 수 있어요.</span>
+        <span className="muted">{designOf(brand).size === "square" ? "1080×1080" : "1080×1350"} PNG로 뽑아요. 디자인은 소장실 책상에서 바꿔요. 휴대폰에서는 공유 창이 열려 사진에 저장할 수 있어요.</span>
         <button className="btn btn--primary" disabled={!!busy} onClick={() => printDraft(draft).then(showPrints)}>
           {busy === "print" ? "인쇄하는 중…" : `${draft.deck.cards.length}장 모두 인쇄하기`}
         </button>
@@ -368,7 +435,8 @@ export function PrinterPanel() {
 }
 
 // ---------- 블로그 원고 ----------
-const blogText = (b: Draft["blog"]) => [b.intro, ...b.sections.map((s) => `■ ${s.heading}\n\n${s.body}`), b.outro].join("\n\n");
+const blogText = (b: Draft["blog"]) =>
+  [b.intro, ...b.sections.map((s) => `■ ${s.heading}\n\n${s.photo ? `[사진: ${s.photo}]\n\n` : ""}${s.body}`), b.outro].join("\n\n");
 
 export function BlogPanel() {
   const { draft, pool } = useDraft();
@@ -377,12 +445,17 @@ export function BlogPanel() {
   if (!draft) return <NoDraft />;
   const b = draft.blog;
   const id = draft.id;
-  const setSection = (k: number, patch: Partial<{ heading: string; body: string }>) =>
+  const setSection = (k: number, patch: Partial<{ heading: string; body: string; photo: string }>) =>
     editBlog(id, { sections: b.sections.map((s, j) => (j === k ? { ...s, ...patch } : s)) });
+  const len = blogLength(b);
+  const target = blogTarget(requestFor(draft));
   return (
     <div className="pn">
       <div className="pn__bar">
         <DraftPicker pool={pool} draft={draft} />
+        <span className={`count ${len < target * 0.7 ? "count--short" : ""}`} title="공백 포함, 제목 제외">
+          {len.toLocaleString()}자 <span className="muted">/ 목표 {target.toLocaleString()}자</span>
+        </span>
         <Seg value={mode} options={["보기", "고치기"] as const} onChange={setMode} label="보기 방식" />
       </div>
       {mode === "보기" ? (
@@ -392,6 +465,12 @@ export function BlogPanel() {
           {b.sections.map((s, k) => (
             <section key={k}>
               <h4>{s.heading}</h4>
+              {s.photo && (
+                <figure className="photo-slot">
+                  <span>사진 자리</span>
+                  {s.photo}
+                </figure>
+              )}
               {s.body.split(/\n\n/).map((p, j) => (
                 <p key={j}>{p}</p>
               ))}
@@ -414,7 +493,19 @@ export function BlogPanel() {
             <fieldset key={k} className="blog-edit__sec">
               <legend>소제목 {k + 1}</legend>
               <input id={`bh-${id}-${k}`} aria-label={`소제목 ${k + 1}`} value={s.heading} onChange={(e) => setSection(k, { heading: e.target.value })} />
-              <textarea id={`bb-${id}-${k}`} aria-label={`소제목 ${k + 1} 본문`} rows={6} value={s.body} onChange={(e) => setSection(k, { body: e.target.value })} />
+              <textarea id={`bb-${id}-${k}`} aria-label={`소제목 ${k + 1} 본문`} rows={8} value={s.body} onChange={(e) => setSection(k, { body: e.target.value })} />
+              <input id={`bp-${id}-${k}`} aria-label={`소제목 ${k + 1} 사진 설명`} placeholder="사진 자리 설명 (비우면 사진 없음)" value={s.photo ?? ""} onChange={(e) => setSection(k, { photo: e.target.value })} />
+              <RewriteBox
+                id={`rw-sec-${id}-${k}`}
+                label={`이 소제목을 AI에게 다시 쓰게 하기 (지금 ${(s.heading.length + s.body.length).toLocaleString()}자)`}
+                chips={["더 길게", "더 짧게", "더 쉽게", "예시 추가", "전문가 말투"]}
+                onRun={async (instruction) => {
+                  const next = await rewriteSection(remoteLLM, requestFor(draft), useLab.getState().drafts.find((x) => x.id === id)!.blog, k, instruction);
+                  const cur = useLab.getState().drafts.find((x) => x.id === id)!.blog;
+                  editBlog(id, { sections: cur.sections.map((x, j) => (j === k ? next : x)) });
+                  useLab.getState().say(`'${next.heading}' 소제목을 다시 썼어요 (${instruction}).`);
+                }}
+              />
               <button className="link-btn" disabled={b.sections.length <= 1} onClick={() => editBlog(id, { sections: b.sections.filter((_, j) => j !== k) })}>
                 이 소제목 빼기
               </button>
@@ -472,7 +563,7 @@ export function MailboatPanel() {
     st.setBusy("print");
     try {
       await navigator.clipboard?.writeText(caption).catch(() => undefined);
-      const files = await draftImages(d, { handle: brand.handle, series: brand.series });
+      const files = await draftImages(d, brand);
       const how = await saveFiles(files, caption);
       if (how === "cancelled") return;
       setPacked(true);
@@ -791,12 +882,122 @@ function Backup() {
   );
 }
 
+// ---------- 카드 디자인·글 분량 설정 ----------
+const SAMPLE_COVER = { kind: "cover" as const, title: "오늘의 AI 소식 5가지", body: "수달이 골라 온 아침 소식" };
+
+function CardDesignSettings() {
+  const brand = useLab((s) => s.brand);
+  const setBrand = useLab((s) => s.setBrand);
+  const design = designOf(brand);
+  const set = (patch: Partial<CardDesign>) => setBrand({ ...brand, design: { ...design, ...patch } });
+  return (
+    <section className="settings">
+      <h3 className="pn__h">카드뉴스 디자인</h3>
+      <div className="themes" role="radiogroup" aria-label="카드 테마">
+        {THEMES.map((t) => (
+          <button key={t.id} role="radio" aria-checked={design.theme === t.id} className={`theme ${design.theme === t.id ? "theme--on" : ""}`} onClick={() => set({ theme: t.id })}>
+            <CardPreview card={SAMPLE_COVER} page={1} total={7} design={{ ...design, theme: t.id }} />
+            <strong>{t.name}</strong>
+            <span>{t.about}</span>
+          </button>
+        ))}
+      </div>
+      <div className="form2">
+        <div className="field">
+          <span>포인트 색</span>
+          <div className="accents">
+            {ACCENTS.map((c) => (
+              <button key={c} className={`accent ${design.accent.toLowerCase() === c.toLowerCase() ? "accent--on" : ""}`} style={{ background: c }} aria-label={`포인트 색 ${c}`} onClick={() => set({ accent: c })} />
+            ))}
+            <label className="accent accent--pick" title="직접 고르기">
+              <span className="sr-only">포인트 색 직접 고르기</span>
+              <input id="b-accent" type="color" value={design.accent} onChange={(e) => set({ accent: e.target.value })} />
+            </label>
+          </div>
+        </div>
+        <label className="field">
+          <span>제목 글꼴</span>
+          <select id="b-font" value={design.font} onChange={(e) => set({ font: e.target.value as CardDesign["font"] })}>
+            {FONTS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="field">
+          <span>카드 크기</span>
+          <Seg
+            value={design.size === "square" ? "정사각 1080×1080" : "세로 1080×1350"}
+            options={["세로 1080×1350", "정사각 1080×1080"] as const}
+            onChange={(v) => set({ size: v.startsWith("정사각") ? "square" : "portrait" })}
+            label="카드 크기"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Stepper({ id, label, value, min, max, unit, onChange }: { id: string; label: string; value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) {
+  return (
+    <div className="field">
+      <span id={id}>{label}</span>
+      <div className="stepper" role="group" aria-labelledby={id}>
+        <button className="btn btn--light" disabled={value <= min} onClick={() => onChange(value - 1)} aria-label="줄이기">
+          −
+        </button>
+        <strong>
+          {value}
+          {unit}
+        </strong>
+        <button className="btn btn--light" disabled={value >= max} onClick={() => onChange(value + 1)} aria-label="늘리기">
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WritingSettings() {
+  const brand = useLab((s) => s.brand);
+  const setBrand = useLab((s) => s.setBrand);
+  const w = writingOf(brand);
+  const set = (patch: Partial<WritingPlan>) => setBrand({ ...brand, writing: { ...w, ...patch } });
+  const lengthName = (n: number) => LENGTHS.find((l) => l.chars === n)?.label ?? "보통";
+  const pickLength = (label: string) => LENGTHS.find((l) => l.label === label)!.chars;
+  return (
+    <section className="settings">
+      <h3 className="pn__h">글 분량</h3>
+      <div className="form2">
+        <Stepper id="w-bundle" label="묶음 카드뉴스 소식 수 (카드는 +2장)" value={w.bundleCount} min={2} max={6} unit="개" onChange={(v) => set({ bundleCount: v })} />
+        <Stepper id="w-deep" label="심층 카드뉴스 본문 장수 (카드는 +2장)" value={w.deepCards} min={3} max={6} unit="장" onChange={(v) => set({ deepCards: v })} />
+        <div className="field">
+          <span>묶음 블로그 길이</span>
+          <Seg value={lengthName(w.bundleLength)} options={LENGTHS.map((l) => l.label)} onChange={(v) => set({ bundleLength: pickLength(v) })} label="묶음 블로그 길이" />
+        </div>
+        <div className="field">
+          <span>심층 블로그 길이</span>
+          <Seg value={lengthName(w.deepLength)} options={LENGTHS.map((l) => l.label)} onChange={(v) => set({ deepLength: pickLength(v) })} label="심층 블로그 길이" />
+        </div>
+      </div>
+      <p className="muted">
+        짧게 1,500자 · 보통 2,500자 · 길게 4,000자 · 아주 길게 6,000자 (공백 포함). 2,000자가 넘으면 설계도를 먼저 짜고 소제목마다 나눠 써서 시간이 조금 더 걸려요.
+      </p>
+      <label className="check">
+        <input id="w-photos" type="checkbox" checked={w.photos} onChange={(e) => set({ photos: e.target.checked })} />
+        <span>블로그 소제목마다 사진 자리와 사진 설명(대체 텍스트)을 넣어 줘요</span>
+      </label>
+    </section>
+  );
+}
+
 export function BrandPanel() {
   const brand = useLab((s) => s.brand);
   const setBrand = useLab((s) => s.setBrand);
   const server = useServerStatus();
   const cloud = useLab((s) => s.cloud);
-  const set = (k: keyof typeof brand, v: string) => setBrand({ ...brand, [k]: v });
+  const set = (k: "handle" | "series" | "tone" | "deepTone", v: string) => setBrand({ ...brand, [k]: v });
   const ai = server === "loading" ? "확인하는 중…" : !server ? "서버 없이 열려 있어요 (뼈대 초안으로 대신 써요)" : server.groq ? `연결됨 (${server.model})` : "키가 없어요 (.env.local에 GROQ_API_KEY)";
   return (
     <div className="pn">
@@ -818,6 +1019,8 @@ export function BrandPanel() {
           <input id="b-deep" value={brand.deepTone} onChange={(e) => set("deepTone", e.target.value)} />
         </label>
       </div>
+      <CardDesignSettings />
+      <WritingSettings />
       <h3 className="pn__h">운영 설정</h3>
       <dl className="ops">
         <div>
@@ -852,22 +1055,6 @@ export function BrandPanel() {
       <h3 className="pn__h">데이터</h3>
       <p className="muted">초안·소식·설정은 이 브라우저에만 저장돼요. 다른 기기로 옮기거나 지키려면 백업을 내려받아 두세요.</p>
       <Backup />
-      <h3 className="pn__h">브랜드 색</h3>
-      <div className="swatches">
-        {[
-          ["하늘", "#8CCBFF"],
-          ["민트", "#7FE3C6"],
-          ["코랄", "#FF9A8A"],
-          ["남색", "#2A2E5E"],
-          ["수달", "#A8754F"],
-          ["크림", "#FCEBD5"],
-        ].map(([n, c]) => (
-          <div key={n} className="swatch">
-            <span style={{ background: c }} />
-            {n}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

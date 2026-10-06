@@ -13,8 +13,9 @@
 | 4 | 회의실: 회의 시간에 모여 추천 소식·성과·게시 대기를 보고하고 소장이 결정 | 완료 |
 | 5 | Supabase 저장 + 이메일(또는 구글) 로그인, 연구소 주인만 열기 | 완료 (연결은 [SETUP.md](SETUP.md)) |
 | 6 | GitHub Actions 매일 자동 회의(묶음 1 + 심층 1) + 디스코드·텔레그램 알림 | 완료 (연결은 [SETUP.md](SETUP.md)) |
-| 7 | 분위기 다듬기 (덜 장난감 같은 그림체·조명·색감) | 다음 |
-| 8 | 인스타그램 자동 게시, 성과 수치 자동 수집 | 예정 |
+| 7 | 카드뉴스 테마 3종(오터 파스텔·뉴스룸·매거진)·포인트 색·제목 글꼴·세로/정사각, 카드 장수, 블로그 길이(최대 6,000자, 긴 글은 소제목별로 나눠 쓰기), 사진 자리, AI 다시 쓰기 | 완료 (소장 책상에서 설정) |
+| 8 | 분위기 다듬기 (덜 장난감 같은 그림체·조명·색감) | 다음 |
+| 9 | 인스타그램 자동 게시, 성과 수치 자동 수집 | 예정 |
 
 계정을 연결하는 순서는 **[SETUP.md](SETUP.md)** 에 있어요. 연결하기 전에는 지금처럼 이 브라우저에만 저장돼요.
 
@@ -85,7 +86,7 @@ npm run preview:build        # 단일 HTML 파일: preview/dist/index.html
 ```
 app/                    Next.js 앱
   api/news              피드를 받아 최근 소식을 돌려줘요
-  api/draft             Groq로 카드뉴스·블로그 초안을 써요 (키가 없으면 501)
+  api/ai                Groq 한 번 부르기 (초안 쓰기·다시 쓰기는 화면의 pipeline이 순서를 정해요)
   api/status            Groq 연결 상태
 src/lab/
   OtterLab.tsx          3D 캔버스, 장면 전환, 키보드·시점 조작
@@ -93,8 +94,8 @@ src/lab/
   data/buildings.ts     건물 8채, 방 안 사물, 브랜드 색
   data/demo.ts          데이터 모양(Draft, Post…)과 처음 보이는 예시 데이터
   news/                 피드 목록, RSS·Atom 읽기
-  gen/                  초안 쓰기: 지시문, Groq 호출, 뼈대 초안, AI 답 다듬기
-  render/cardImage.ts   카드뉴스 1080×1350 PNG 그리기, 저장·공유
+  gen/                  초안 쓰기: 지시문(prompt), 쓰는 순서(pipeline), Groq 호출, 뼈대 초안, AI 답 다듬기
+  render/cardImage.ts   카드뉴스 그리기 (테마 3종, 미리보기와 PNG가 같은 함수), 저장·공유
   agenda.ts             회의 안건 (시계, 추천 소식, 성과 보고, 회의록)
   company.ts            회의 소집·결정·초안 쓰기 (화면용)
   cloud/                Supabase 저장·동기화, 로그인, API 문지기

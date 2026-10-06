@@ -84,17 +84,20 @@ export async function writeJob(type: DraftType, items: NewsItem[], meetingId?: s
   st.setWriting("cards", true);
   st.setWriting("blog", true);
   try {
-    const w = await writeDraft({
-      type,
-      items,
-      brand: st.brand,
-      prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt },
-    });
+    const w = await writeDraft(
+      {
+        type,
+        items,
+        brand: st.brand,
+        prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt },
+      },
+      (step) => useLab.getState().say(`${type} 초안: ${step}…`),
+    );
     const now = Date.now();
     const draft: Draft = { id: `d${now.toString(36)}`, type, createdAt: now, status: "검토 대기", engine: w.engine, sources: items.map((n) => n.link), deck: w.deck, blog: w.blog };
     useLab.getState().addDraft(draft);
     if (meetingId) useLab.setState((s) => ({ meetings: s.meetings.map((m) => (m.id === meetingId ? { ...m, drafts: [...m.drafts, draft.id] } : m)) }));
-    const why = w.engine === "groq" ? "" : w.why === "nokey" ? " (Groq 키가 없어 뼈대 초안)" : w.why === "error" ? " (Groq 연결 실패로 뼈대 초안)" : " (서버 없이 뼈대 초안)";
+    const why = w.engine === "groq" ? (w.notes?.length ? ` (${w.notes.length}곳은 직접 채워 주세요)` : "") : w.why === "nokey" ? " (Groq 키가 없어 뼈대 초안)" : w.why === "error" ? " (Groq 연결 실패로 뼈대 초안)" : " (서버 없이 뼈대 초안)";
     useLab.getState().say(`${type} 초안 '${draftLabel(draft)}'이 나왔어요${why}. 카드뉴스 공방에서 확인해 보세요.`);
     return draft;
   } finally {

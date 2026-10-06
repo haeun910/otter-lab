@@ -1,57 +1,38 @@
 "use client";
+import { useEffect, useRef } from "react";
 import type { Card } from "../data/demo";
-import { OtterFace } from "./Hud";
+import { designOf, type CardDesign } from "../gen/prompt";
+import { CARD_W, cardHeight, drawCard, prepare } from "../render/cardImage";
+import { useLab } from "../store";
 
-/** 카드뉴스 한 장 미리보기 (1080×1350 비율). 실제 이미지는 3단계에서 서버가 같은 디자인으로 그려요. */
-export default function CardPreview({
-  card,
-  page,
-  total,
-  handle,
-  series,
-  deep,
-}: {
-  card: Card;
-  page: number;
-  total: number;
-  handle: string;
-  series: string;
-  deep?: boolean;
-}) {
-  const lines = card.body.split(/\n+/).filter(Boolean);
-  return (
-    <div className={`cardnews cardnews--${card.kind} ${deep ? "cardnews--deep" : ""}`}>
-      <div className="cardnews__inner">
-        <div className="cardnews__top">
-          {card.kind === "cover" ? (
-            <span className="cardnews__pill">{deep ? "오늘의 한 가지" : series}</span>
-          ) : card.kind === "outro" ? (
-            <span className="cardnews__pill">정리</span>
-          ) : (
-            <span className="cardnews__pill cardnews__pill--light">
-              {page} / {total}
-            </span>
-          )}
-          {card.kind === "body" && card.tag && <span className="cardnews__tag">{card.tag}</span>}
-          <span className="cardnews__handle">{handle}</span>
-        </div>
-        <h4 className="cardnews__title">{card.title}</h4>
-        {card.kind === "cover" ? (
-          <p className="cardnews__sub">{card.body}</p>
-        ) : (
-          <div className="cardnews__body">
-            {lines.map((l, i) => (
-              <p key={i} className={card.kind === "outro" ? "cardnews__li" : ""}>
-                {l.replace(/^[-•]\s*/, "")}
-              </p>
-            ))}
-          </div>
-        )}
-        <div className="cardnews__mascot">
-          <OtterFace size={card.kind === "cover" ? 64 : 36} />
-        </div>
-        {card.kind === "outro" && <div className="cardnews__cta">저장해 두고 내일 소식도 받아보세요</div>}
-      </div>
-    </div>
-  );
+/**
+ * 카드뉴스 한 장 미리보기. 저장하는 PNG와 같은 그리기 함수로 그려서 생김새가 똑같아요.
+ * 화면에는 절반 크기(540px 폭)로 그리고 CSS로 맞춰요.
+ */
+export default function CardPreview({ card, page, total, deep, design: override }: { card: Card; page: number; total: number; deep?: boolean; design?: CardDesign; handle?: string; series?: string }) {
+  const brand = useLab((s) => s.brand);
+  const design = override ?? designOf(brand);
+  const ref = useRef<HTMLCanvasElement>(null);
+  const H = cardHeight(design);
+  const key = JSON.stringify([card, page, total, deep, design, brand.handle, brand.series]);
+
+  useEffect(() => {
+    let alive = true;
+    const look = { page, total, deep, handle: brand.handle, series: brand.series, design };
+    const draw = () => {
+      const cv = ref.current;
+      const ctx = cv?.getContext("2d");
+      if (!cv || !ctx || !alive) return;
+      ctx.setTransform(cv.width / CARD_W, 0, 0, cv.width / CARD_W, 0, 0);
+      drawCard(ctx, card, look);
+    };
+    draw(); // 글꼴이 오기 전에도 바로 한 번
+    prepare(`${card.title}${card.body}${card.tag ?? ""}${brand.handle}${brand.series}`, design).then(draw);
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return <canvas ref={ref} className="cardnews-canvas" width={540} height={Math.round((540 * H) / CARD_W)} aria-label={`${page}번째 카드: ${card.title}`} role="img" />;
 }

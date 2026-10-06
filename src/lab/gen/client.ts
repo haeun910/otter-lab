@@ -1,5 +1,6 @@
 // 화면에서 서버 API를 부르는 곳. 서버가 없거나(미리보기 파일) 키가 없으면 브라우저 안에서 대신 처리해요.
 import type { Blog, Deck, DraftType, NewsItem } from "../data/demo";
+import { writeAll, type LLM } from "./pipeline";
 import type { DraftRequest } from "./prompt";
 import { templateBlog, templateDeck } from "./template";
 
@@ -17,21 +18,47 @@ export interface Written {
   engine: "groq" | "template";
   /** 뼈대 초안으로 대신한 까닭 */
   why?: "nokey" | "offline" | "error";
+  notes?: string[];
 }
 
-export async function writeDraft(r: DraftRequest): Promise<Written> {
-  let why: Written["why"] = "offline";
-  try {
-    const res = await fetch("/api/draft", { method: "POST", headers: { "content-type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(r) });
-    if (res.ok) {
-      const out = (await res.json()) as { deck: Deck; blog: Blog };
-      return { deck: out.deck, blog: out.blog, engine: "groq" };
-    }
-    why = res.status === 501 ? "nokey" : res.status === 404 ? "offline" : "error";
-  } catch {
-    why = "offline";
+/** 서버의 /api/ai를 한 번 부르기 (pipeline에 끼워요) */
+export class AIError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
   }
-  return { deck: templateDeck(r.type, r.items, r.brand), blog: templateBlog(r.type, r.items), engine: "template", why };
+}
+export const remoteLLM: LLM = async (messages, opts) => {
+  let res: Response;
+  try {
+    res = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ messages, maxTokens: opts?.maxTokens }) });
+  } catch {
+    throw new AIError("서버에 연결하지 못했어요", 0);
+  }
+  const out = (await res.json().catch(() => ({}))) as { data?: unknown; error?: string };
+  if (!res.ok) throw new AIError(out.error ?? `서버 오류 ${res.status}`, res.status);
+  return out.data;
+};
+
+const whyOf = (e: unknown): Written["why"] => (e instanceof AIError ? (e.status === 501 ? "nokey" : e.status === 0 || e.status === 404 ? "offline" : "error") : "error");
+
+export async function writeDraft(r: DraftRequest, onProgress?: (step: string) => void): Promise<Written> {
+  try {
+    const out = await writeAll(remoteLLM, r, onProgress);
+    return { ...out, engine: "groq" };
+  } catch (e) {
+    return { deck: templateDeck(r.type, r.items, r.brand), blog: templateBlog(r.type, r.items, Date.now(), r.brand), engine: "template", why: whyOf(e) };
+  }
+}
+
+/** 다시 쓰기: 실패하면 이유를 한국어로 */
+export function aiFailText(e: unknown): string {
+  const why = whyOf(e);
+  if (why === "nokey") return "Groq 키가 없어서 다시 쓰지 못했어요.";
+  if (why === "offline") return "서버에 연결되지 않아 다시 쓰지 못했어요.";
+  return `다시 쓰지 못했어요: ${e instanceof Error ? e.message.slice(0, 120) : "오류"}`;
 }
 
 export async function fetchNews(): Promise<{ items: NewsItem[]; failed: string[]; fetchedAt: number } | null> {

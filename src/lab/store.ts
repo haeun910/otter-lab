@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { BUILDINGS, type RoomObject } from "./data/buildings";
 import { NEWS, SEED_DRAFTS, SEED_POSTS, type Blog, type Card, type Draft, type Meeting, type NewsItem, type Post } from "./data/demo";
-import { DEFAULT_BRAND, DEFAULT_PROMPTS } from "./gen/prompt";
+import { DEFAULT_BRAND, DEFAULT_PROMPTS, type BrandVoice } from "./gen/prompt";
 import { mergeNews } from "./news/rss";
 
 export type SceneId = "overview" | string; // 본관 전체 또는 방 id
@@ -16,12 +16,8 @@ export interface StaffEdit {
   prompt?: string; // 글 쓰는 연구원(모모·테오)의 역할 지시문
 }
 
-export interface Brand {
-  handle: string;
-  series: string;
-  tone: string;
-  deepTone: string;
-}
+/** 브랜드 설정 (계정·시리즈 이름·말투 + 카드 디자인·글 분량) */
+export type Brand = BrandVoice;
 
 const LIBRARY_MAX = 3000;
 
@@ -79,7 +75,7 @@ interface LabState {
   addCard: (draftId: string, after: number) => void;
   removeCard: (draftId: string, index: number) => void;
   moveCard: (draftId: string, index: number, dir: -1 | 1) => void;
-  editDeck: (draftId: string, patch: { caption?: string; hashtags?: string[] }) => void;
+  editDeck: (draftId: string, patch: Partial<Draft["deck"]>) => void;
   editBlog: (draftId: string, patch: Partial<Blog>) => void;
   publish: (draftId: string) => void;
   editPost: (id: string, patch: Partial<Pick<Post, "likes" | "saves" | "reach">>) => void;

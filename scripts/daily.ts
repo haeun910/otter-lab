@@ -7,7 +7,7 @@ import { cleanKey, cleanUrl, selectRows, upsertRows, type Cloud } from "../src/l
 import { BUILDINGS } from "../src/lab/data/buildings";
 import type { Draft, Meeting, NewsItem } from "../src/lab/data/demo";
 import { groqNotes, groqReady, writeWithGroq } from "../src/lab/gen/groq";
-import { DEFAULT_BRAND, DEFAULT_PROMPTS, type BrandVoice } from "../src/lab/gen/prompt";
+import { DEFAULT_BRAND, DEFAULT_PROMPTS, writingOf, type BrandVoice } from "../src/lab/gen/prompt";
 import { templateBlog, templateDeck } from "../src/lab/gen/template";
 import { FEEDS } from "../src/lab/news/feeds";
 import { collectNews, mergeNews } from "../src/lab/news/rss";
@@ -52,7 +52,7 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
 
   // 2. 루미 추천대로 오늘 할 일 정하기
   const drafts = data.drafts ?? [];
-  const picks = recommend(library, inbox, drafts);
+  const picks = recommend(library, inbox, drafts, writingOf(brand).bundleCount);
   const byLink = new Map(library.map((n) => [n.link, n]));
   const bundle = picks.bundle.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n));
   const deep = picks.deep ? byLink.get(picks.deep) : undefined;
@@ -66,13 +66,15 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
     let out: Pick<Draft, "deck" | "blog" | "engine">;
     if (groqReady()) {
       try {
-        out = { ...(await writeWithGroq(req)), engine: "groq" };
+        const w = await writeWithGroq(req);
+        out = { deck: w.deck, blog: w.blog, engine: "groq" };
+        problems.push(...w.notes.map((n) => `${job.type}: ${n}`));
       } catch (e) {
         problems.push(`${job.type} 초안은 Groq 연결이 안 돼서 뼈대로 썼어요 (${e instanceof Error ? e.message.slice(0, 80) : "오류"})`);
-        out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now), engine: "template" };
+        out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template" };
       }
     } else {
-      out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now), engine: "template" };
+      out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template" };
     }
     made.push({ id: `d${now.toString(36)}${i}`, type: job.type, createdAt: now + i, status: "검토 대기", sources: job.items.map((n) => n.link), ...out });
   }

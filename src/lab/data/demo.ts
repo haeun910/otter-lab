@@ -34,7 +34,7 @@ export interface Deck {
 export interface Blog {
   title: string;
   intro: string;
-  sections: { heading: string; body: string }[];
+  sections: { heading: string; body: string; photo?: string }[]; // photo: 그 자리에 넣을 사진 설명 (대체 텍스트)
   outro: string;
   tags: string[];
 }

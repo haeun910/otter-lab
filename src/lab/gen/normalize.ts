@@ -42,8 +42,9 @@ export function normalizeBlog(raw: unknown, fallback: Blog): Blog {
   const o = (raw ?? {}) as Record<string, unknown>;
   const sections = list(o.sections)
     .map((s) => (s ?? {}) as Record<string, unknown>)
-    .map((s) => ({ heading: str(s.heading), body: str(s.body).replace(/\\n/g, "\n") }))
-    .filter((s) => s.heading && s.body);
+    .map((s) => ({ heading: str(s.heading), body: str(s.body).replace(/\\n/g, "\n"), photo: str(s.photo) }))
+    .filter((s) => s.heading && s.body)
+    .map(({ photo, ...s }) => (photo ? { ...s, photo } : s));
   const tags = list(o.tags)
     .map((t) => str(t).replace(/^#+/, "").trim())
     .filter(Boolean);
