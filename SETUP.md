@@ -88,7 +88,15 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
    - Site URL: 4단계에서 받을 Vercel 주소 (나중에 채워도 돼요)
    - Redirect URLs: Vercel 주소와 `http://localhost:3000` 을 추가해요.
 
-로그인은 기본으로 **이메일 로그인 링크**를 써요 (따로 설정할 것 없음).
+6. **비밀번호 만들기** (이메일 + 비밀번호로 바로 로그인하려면)
+   - 왼쪽 **Authentication → Users**
+   - 내 이메일이 이미 목록에 있으면(메일 링크를 받아 본 적이 있으면) 그 줄 오른쪽 **⋯ → Delete user**로 지워요. 연구소 데이터는 지워지지 않아요.
+   - 오른쪽 위 **Add user → Create new user**
+   - Email: 소장님 이메일 / Password: 쓸 비밀번호 / **Auto Confirm User 체크** → **Create user**
+   - 이제 연구소에서 이메일과 비밀번호로 바로 로그인돼요. 한 번 로그인한 브라우저는 계속 로그인돼 있어요.
+   - 나중에 비밀번호를 바꾸려면 연구소 **소장실 → 소장 책상**에서 바꿀 수 있어요.
+
+비밀번호 대신 **메일 로그인 링크**로 들어갈 수도 있어요 (로그인 화면의 "비밀번호 없이 메일 링크로 로그인").
 구글 로그인도 쓰고 싶으면 **Authentication → Providers → Google**을 켜고 구글 클라우드에서 OAuth 클라이언트를 만든 뒤, Vercel 환경변수에 `NEXT_PUBLIC_LOGIN_GOOGLE=1`을 넣어 주세요.
 
 ## 4. Vercel

@@ -708,6 +708,41 @@ function useServerStatus() {
   return st;
 }
 
+/** 로그인한 뒤 비밀번호 만들기·바꾸기 (다음부터 이메일 + 비밀번호로 바로 로그인) */
+function PasswordSetter() {
+  const say = useLab((s) => s.say);
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <form
+      className="row backup"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (pw.length < 8) return say("비밀번호는 8자 이상으로 해 주세요.");
+        setBusy(true);
+        try {
+          const { setPassword } = await import("../../cloud/session");
+          await setPassword(pw);
+          setPw("");
+          say("비밀번호를 저장했어요. 다음부터 이메일과 비밀번호로 바로 로그인할 수 있어요.");
+        } catch (x) {
+          say(`비밀번호를 저장하지 못했어요: ${x instanceof Error ? x.message : String(x)}`);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="field">
+        <span>로그인 비밀번호 만들기·바꾸기 (8자 이상)</span>
+        <input id="b-password" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+      </label>
+      <button className="btn btn--light" type="submit" disabled={busy || !pw}>
+        {busy ? "저장 중…" : "비밀번호 저장"}
+      </button>
+    </form>
+  );
+}
+
 function Backup() {
   const say = useLab((s) => s.say);
   const importData = useLab((s) => s.importData);
@@ -813,6 +848,7 @@ export function BrandPanel() {
           </dd>
         </div>
       </dl>
+      {cloud !== "off" && <PasswordSetter />}
       <h3 className="pn__h">데이터</h3>
       <p className="muted">초안·소식·설정은 이 브라우저에만 저장돼요. 다른 기기로 옮기거나 지키려면 백업을 내려받아 두세요.</p>
       <Backup />

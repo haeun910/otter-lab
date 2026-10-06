@@ -1,8 +1,19 @@
 "use client";
 import { useEffect, useState } from "react";
 import { GOOGLE_LOGIN, cloudConfigured, configProblem, connectionInfo } from "../cloud/config";
-import { sendLoginLink, signInWithGoogle, signOut, watchSession, type Gate } from "../cloud/session";
+import { sendLoginLink, signInWithGoogle, signInWithPassword, signOut, watchSession, type Gate } from "../cloud/session";
 import { OtterFace } from "./Hud";
+
+/** Supabase 오류를 무엇을 하면 되는지로 바꿔 말해요 */
+function explain(x: unknown): string {
+  const m = x instanceof Error ? x.message : String(x);
+  if (/Invalid login credentials/i.test(m)) return "이메일이나 비밀번호가 맞지 않아요. 아직 비밀번호를 만들지 않았다면 SETUP.md의 '비밀번호 만들기'를 봐 주세요.";
+  if (/Email not confirmed/i.test(m)) return "이메일 확인이 안 된 계정이에요. Supabase에서 사용자를 만들 때 'Auto Confirm User'를 체크해 주세요.";
+  if (/Invalid API key/i.test(m)) return "Supabase가 이 키를 모른대요 (Invalid API key). 아래 연결 정보가 Supabase 화면의 주소·publishable 키와 같은지 확인해 주세요.";
+  if (/fetch|network|Invalid value/i.test(m)) return `Supabase에 연결하지 못했어요. Vercel의 Supabase 주소·키 값을 확인해 주세요. (${m})`;
+  if (/rate|limit|seconds/i.test(m)) return `너무 자주 시도했어요. 잠시 뒤 다시 해 주세요. (${m})`;
+  return m;
+}
 
 /** 로그인 링크가 실패해서 돌아왔을 때 그 이유를 한국어로 */
 export function linkError(part: string): string | null {
@@ -23,6 +34,7 @@ export default function LoginGate() {
   } as Gate);
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
 
   const problem = cloudConfigured() ? configProblem() : null;
@@ -82,19 +94,9 @@ export default function LoginGate() {
                     e.preventDefault();
                     setErr("");
                     try {
-                      await sendLoginLink(email.trim());
-                      setSent(true);
+                      await signInWithPassword(email.trim(), password);
                     } catch (x) {
-                      const m = x instanceof Error ? x.message : String(x);
-                      setErr(
-                        /Invalid API key/i.test(m)
-                          ? `Supabase가 이 키를 모른대요 (Invalid API key). 아래 연결 정보가 Supabase 화면의 주소·publishable 키와 같은지 확인해 주세요.`
-                          : /fetch|network|Invalid value/i.test(m)
-                            ? `Supabase에 연결하지 못했어요. Vercel의 Supabase 주소·키 값을 확인해 주세요. (${m})`
-                            : /rate|limit|seconds/i.test(m)
-                              ? `메일을 너무 자주 보냈어요. 잠시 뒤 다시 해 주세요. (${m})`
-                              : m,
-                      );
+                      setErr(explain(x));
                     }
                   }}
                 >
@@ -102,8 +104,28 @@ export default function LoginGate() {
                     <span>소장님 이메일</span>
                     <input id="gate-email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                   </label>
+                  <label className="field">
+                    <span>비밀번호</span>
+                    <input id="gate-password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  </label>
                   <button className="btn btn--primary" type="submit">
-                    로그인 링크 받기
+                    로그인
+                  </button>
+                  <button
+                    className="link-btn"
+                    type="button"
+                    onClick={async () => {
+                      setErr("");
+                      if (!email.trim()) return setErr("이메일을 먼저 넣어 주세요.");
+                      try {
+                        await sendLoginLink(email.trim());
+                        setSent(true);
+                      } catch (x) {
+                        setErr(explain(x));
+                      }
+                    }}
+                  >
+                    비밀번호 없이 메일 링크로 로그인
                   </button>
                   {GOOGLE_LOGIN && (
                     <button className="btn btn--light" type="button" onClick={() => void signInWithGoogle().catch((x) => setErr(String(x?.message ?? x)))}>
@@ -111,7 +133,7 @@ export default function LoginGate() {
                     </button>
                   )}
                   {err && <p className="gate__err">{err}</p>}
-                  {err && (
+                  {err && /Supabase/.test(err) && (
                     <p className="muted gate__info">
                       지금 연결 정보
                       <br />

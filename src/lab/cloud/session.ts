@@ -47,6 +47,18 @@ export async function watchSession(onGate: (g: Gate) => void) {
   return () => data.subscription.unsubscribe();
 }
 
+/** 이메일 + 비밀번호로 바로 로그인 */
+export async function signInWithPassword(email: string, password: string) {
+  const { error } = await (await sb()).auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+
+/** 로그인한 채로 비밀번호 만들기·바꾸기 */
+export async function setPassword(password: string) {
+  const { error } = await (await sb()).auth.updateUser({ password });
+  if (error) throw error;
+}
+
 export async function sendLoginLink(email: string) {
   const { error } = await (await sb()).auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
   if (error) throw error;
