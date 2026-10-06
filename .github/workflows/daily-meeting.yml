@@ -40,4 +40,5 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_MENTION_USER_ID: ${{ vars.DISCORD_MENTION_USER_ID }}
           LAB_URL: ${{ vars.LAB_URL }}
+          GITHUB_TOKEN: ${{ github.token }} # GitHub 인기 저장소 검색 한도를 넉넉하게
           FORCE: ${{ inputs.force && '1' || '' }}

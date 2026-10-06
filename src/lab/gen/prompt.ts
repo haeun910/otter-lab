@@ -1,5 +1,6 @@
 // 초안 쓰기에 쓰는 지시문. 연구원 명부에서 고친 지시문이 여기 기본값 대신 들어가요.
 import type { Blog, Deck, DraftType, NewsItem } from "../data/demo";
+import { CATEGORIES, CATEGORY_INFO, DEFAULT_MIX, type Category, type Mix } from "../news/category";
 
 export type CardTheme = "pastel" | "newsroom" | "magazine";
 export type TitleFont = "jua" | "noto" | "blackhan" | "gowun";
@@ -19,6 +20,7 @@ export interface WritingPlan {
   bundleLength: number; // 묶음 블로그 글자 수 (공백 포함)
   deepLength: number; // 심층 블로그 글자 수
   photos: boolean; // 블로그에 사진 자리 표시
+  mix: Mix; // 묶음 카드뉴스의 분야 비율 (AI·Tech·Dev·Paper·Tools, 0~3)
 }
 
 export interface BrandVoice {
@@ -31,7 +33,7 @@ export interface BrandVoice {
 }
 
 export const DEFAULT_DESIGN: CardDesign = { theme: "pastel", accent: "#8CCBFF", font: "jua", size: "portrait" };
-export const DEFAULT_WRITING: WritingPlan = { bundleCount: 5, deepCards: 4, bundleLength: 2500, deepLength: 4000, photos: true };
+export const DEFAULT_WRITING: WritingPlan = { bundleCount: 5, deepCards: 4, bundleLength: 2500, deepLength: 4000, photos: true, mix: DEFAULT_MIX };
 export const LENGTHS = [
   { label: "짧게", chars: 1500 },
   { label: "보통", chars: 2500 },
@@ -49,6 +51,7 @@ export function writingOf(b: BrandVoice): WritingPlan {
     bundleLength: clamp(w.bundleLength, 800, 8000, DEFAULT_WRITING.bundleLength),
     deepLength: clamp(w.deepLength, 800, 8000, DEFAULT_WRITING.deepLength),
     photos: w.photos !== false,
+    mix: Object.fromEntries(CATEGORIES.map((c) => [c, clamp(w.mix?.[c], 0, 3, DEFAULT_MIX[c])])) as Mix,
   };
 }
 
@@ -64,8 +67,7 @@ export const DEFAULT_BRAND: BrandVoice = {
 export const DEFAULT_PROMPTS: Record<string, string> = {
   cards:
     "인스타그램 카드뉴스 문구를 써요. 카드 한 장에는 제목 한 줄(20자 안쪽)과 본문 두 줄(한 줄 40자 안쪽)만 넣어요. 숫자·날짜·고유명사는 원문 그대로 쓰고, 원문에 없는 사실은 지어내지 않아요.",
-  blog:
-    "네이버 블로그 글을 써요. 문단은 두세 문장으로 짧게 끊고, 어려운 용어는 한 번 풀어 줘요. 원문에 없는 사실·숫자는 지어내지 않고, 모르는 부분은 '원문에서 확인해 보세요'라고 써요. '제 생각에는'으로 시작하는 짧은 의견을 글 끝 쪽에 붙여요.",
+  blog: "네이버 블로그 글을 써요. 문단은 두세 문장으로 짧게 끊고, 어려운 용어는 한 번 풀어 줘요. 원문에 없는 사실·숫자는 지어내지 않고, 모르는 부분은 '원문에서 확인해 보세요'라고 써요. '제 생각에는'으로 시작하는 짧은 의견을 글 끝 쪽에 붙여요.",
 };
 
 export interface DraftRequest {
@@ -78,11 +80,26 @@ export interface DraftRequest {
 export type Msg = { role: "system" | "user" | "assistant"; content: string };
 
 const newsBlock = (items: NewsItem[]) =>
-  items.map((n, i) => `[${i + 1}] ${n.title}\n매체: ${n.source} (${n.region})\n링크: ${n.link}\n요약: ${n.excerpt || "(요약 없음)"}`).join("\n\n");
+  items
+    .map((n, i) => `[${i + 1}] ${n.title}\n분야: ${n.category}\n매체: ${n.source} (${n.region})\n링크: ${n.link}\n요약: ${n.excerpt || "(요약 없음)"}`)
+    .join("\n\n");
+
+/** 이번 글에 나오는 분야마다 무엇을 중심으로 쓸지 */
+const guideBlock = (items: NewsItem[]) => {
+  const cats = CATEGORIES.filter((c) => items.some((n) => n.category === c));
+  return cats.length ? `분야별로 쓰는 법:\n${cats.map((c) => `- ${c}: ${CATEGORY_INFO[c].guide}`).join("\n")}` : "";
+};
+
+/** 심층 글의 분야 (첫 소식 기준) */
+const deepCategory = (r: DraftRequest): Category => r.items[0]?.category ?? "AI";
 
 /** 심층 카드 본문 장수에 맞는 꼬리표 차례 */
-export const DEEP_TAGS = ["무슨 일이야?", "배경은?", "어떻게?", "왜 중요해?", "앞으로는?", "한 가지 더"];
-export const deepTags = (n: number) => (n <= 3 ? ["무슨 일이야?", "어떻게?", "왜 중요해?"] : DEEP_TAGS.slice(0, n));
+export const DEEP_TAGS = CATEGORY_INFO.Tech.deepTags;
+/** 분야마다 꼬리표 차례가 달라요. 3장이면 첫째·셋째·넷째 (무엇·어떻게·왜) */
+export const deepTags = (n: number, cat: Category = "Tech") => {
+  const t = CATEGORY_INFO[cat].deepTags;
+  return n <= 3 ? [t[0], t[2], t[3]] : t.slice(0, n);
+};
 
 const DECK_FORMAT = `형식:\n{"cards":[{"kind":"cover|body|outro","tag":"","title":"","body":""}],"caption":"인스타그램 캡션(마지막 줄에 '출처: 매체')","hashtags":["#태그", ...10개 안쪽]}`;
 
@@ -94,15 +111,15 @@ function cardsSystem(r: DraftRequest) {
 export function cardsMessages(r: DraftRequest): Msg[] {
   const deep = r.type === "심층";
   const w = writingOf(r.brand);
-  const tags = deepTags(w.deepCards);
+  const tags = deepTags(w.deepCards, deepCategory(r));
   const shape = deep
     ? `cover 1장(제목=후킹 문장, body=한 줄 부제) → body ${tags.length}장(tag는 차례대로 ${tags.map((t) => `'${t}'`).join(", ")}) → outro 1장(제목 '한 줄 정리', body는 '- '로 시작하는 줄 3개)`
-    : `cover 1장(제목 '오늘의 AI 소식 ${r.items.length}가지' 꼴, body=한 줄 부제) → 소식마다 body 1장(tag=매체 이름, 모두 ${r.items.length}장) → outro 1장(제목 '오늘의 정리', body는 소식마다 '- '로 시작하는 줄)`;
+    : `cover 1장(제목 '오늘의 AI·IT 소식 ${r.items.length}가지' 꼴, body=한 줄 부제) → 소식마다 body 1장(tag=그 소식의 분야 이름 그대로, 모두 ${r.items.length}장) → outro 1장(제목 '오늘의 정리', body는 소식마다 '- '로 시작하는 줄)`;
   return [
     { role: "system", content: cardsSystem(r) },
     {
       role: "user",
-      content: `아래 소식으로 ${deep ? "심층(소식 하나를 깊게)" : "묶음(여러 소식을 한 장씩)"} 카드뉴스를 만들어 줘.\n카드 구성: ${shape}\n본문 줄바꿈은 \\n으로.\n\n${DECK_FORMAT}\n\n소식:\n${newsBlock(r.items)}`,
+      content: `아래 소식으로 ${deep ? "심층(소식 하나를 깊게)" : "묶음(여러 소식을 한 장씩)"} 카드뉴스를 만들어 줘.\n카드 구성: ${shape}\n본문 줄바꿈은 \\n으로.\n${guideBlock(r.items)}\n\n${DECK_FORMAT}\n\n소식:\n${newsBlock(r.items)}`,
     },
   ];
 }
@@ -132,7 +149,9 @@ export const blogTarget = (r: DraftRequest) => {
 export const sectionCount = (r: DraftRequest) => (r.type === "심층" ? Math.min(8, Math.max(3, Math.round(blogTarget(r) / 700))) : r.items.length);
 
 const photoRule = (r: DraftRequest) =>
-  writingOf(r.brand).photos ? `소제목마다 "photo"에 그 자리에 넣으면 좋을 사진을 한 줄로 설명해 줘 (예: "발표 현장 사진", "서비스 화면 캡처"). 사진 설명은 대체 텍스트로도 써.` : `"photo"는 빈 문자열로 둬.`;
+  writingOf(r.brand).photos
+    ? `소제목마다 "photo"에 그 자리에 넣으면 좋을 사진을 한 줄로 설명해 줘 (예: "발표 현장 사진", "서비스 화면 캡처"). 사진 설명은 대체 텍스트로도 써.`
+    : `"photo"는 빈 문자열로 둬.`;
 
 /** 짧은 글: 한 번에 */
 export function blogMessages(r: DraftRequest): Msg[] {
@@ -141,7 +160,7 @@ export function blogMessages(r: DraftRequest): Msg[] {
     { role: "system", content: blogSystem(r) },
     {
       role: "user",
-      content: `아래 소식으로 ${deep ? "한 가지 소식을 깊게 풀어 주는" : "소식을 하나씩 정리하는"} 블로그 글을 써 줘.\n전체 길이는 공백 포함 약 ${blogTarget(r)}자.\n제목은 검색에 잘 걸리게 핵심 낱말을 앞에.\n소제목 ${sectionCount(r)}개${deep ? " (배경, 무슨 일, 의미 등)" : " (소식마다 하나)"}. 소제목마다 끝에 '출처: 매체 (링크)'.\n${photoRule(r)}\n문단 구분은 \\n\\n으로.\n\n형식:\n{"title":"","intro":"","sections":[{"heading":"","body":"","photo":""}],"outro":"","tags":["# 없이", ...10개 안쪽]}\n\n소식:\n${newsBlock(r.items)}`,
+      content: `아래 소식으로 ${deep ? "한 가지 소식을 깊게 풀어 주는" : "소식을 하나씩 정리하는"} 블로그 글을 써 줘.\n전체 길이는 공백 포함 약 ${blogTarget(r)}자.\n제목은 검색에 잘 걸리게 핵심 낱말을 앞에.\n소제목 ${sectionCount(r)}개${deep ? ` (${CATEGORY_INFO[deepCategory(r)].deepFlow} 흐름)` : " (소식마다 하나, 분야 순서대로)"}.\n${guideBlock(r.items)} 소제목마다 끝에 '출처: 매체 (링크)'.\n${photoRule(r)}\n문단 구분은 \\n\\n으로.\n\n형식:\n{"title":"","intro":"","sections":[{"heading":"","body":"","photo":""}],"outro":"","tags":["# 없이", ...10개 안쪽]}\n\n소식:\n${newsBlock(r.items)}`,
     },
   ];
 }
@@ -154,13 +173,18 @@ export function blogOutlineMessages(r: DraftRequest): Msg[] {
     { role: "system", content: blogSystem(r) },
     {
       role: "user",
-      content: `아래 소식으로 공백 포함 약 ${blogTarget(r)}자짜리 ${deep ? "심층" : "묶음"} 블로그 글의 설계도를 만들어 줘. 본문은 다음 단계에서 소제목마다 따로 써.\n- title: 검색에 잘 걸리게 핵심 낱말을 앞에\n- intro: 도입 문단 (300자 안쪽)\n- sections: 소제목 ${n}개${deep ? ". 배경 → 무슨 일 → 어떻게 → 의미 → 앞으로 같은 흐름으로, 서로 겹치지 않게" : ". 소식마다 하나"}. points에 그 소제목에서 다룰 내용을 두세 줄로\n- ${photoRule(r)}\n- outro: 맺음 문단 (200자 안쪽)\n\n형식:\n{"title":"","intro":"","sections":[{"heading":"","points":"","photo":""}],"outro":"","tags":["# 없이", ...10개 안쪽]}\n\n소식:\n${newsBlock(r.items)}`,
+      content: `아래 소식으로 공백 포함 약 ${blogTarget(r)}자짜리 ${deep ? "심층" : "묶음"} 블로그 글의 설계도를 만들어 줘. 본문은 다음 단계에서 소제목마다 따로 써.\n- title: 검색에 잘 걸리게 핵심 낱말을 앞에\n- intro: 도입 문단 (300자 안쪽)\n- sections: 소제목 ${n}개${deep ? `. ${CATEGORY_INFO[deepCategory(r)].deepFlow} 같은 흐름으로, 서로 겹치지 않게` : ". 소식마다 하나, 분야 순서대로"}. points에 그 소제목에서 다룰 내용을 두세 줄로\n- ${guideBlock(r.items).replace(/\n/g, " ")}\n- ${photoRule(r)}\n- outro: 맺음 문단 (200자 안쪽)\n\n형식:\n{"title":"","intro":"","sections":[{"heading":"","points":"","photo":""}],"outro":"","tags":["# 없이", ...10개 안쪽]}\n\n소식:\n${newsBlock(r.items)}`,
     },
   ];
 }
 
 /** 긴 글 2단계: 소제목 하나의 본문 */
-export function blogSectionMessages(r: DraftRequest, outline: { title: string; sections: { heading: string; points?: string }[] }, i: number, chars: number): Msg[] {
+export function blogSectionMessages(
+  r: DraftRequest,
+  outline: { title: string; sections: { heading: string; points?: string }[] },
+  i: number,
+  chars: number,
+): Msg[] {
   const deep = r.type === "심층";
   const s = outline.sections[i];
   const last = i === outline.sections.length - 1;
@@ -170,7 +194,7 @@ export function blogSectionMessages(r: DraftRequest, outline: { title: string; s
     { role: "system", content: blogSystem(r) },
     {
       role: "user",
-      content: `블로그 글 '${outline.title}'의 소제목 하나를 써 줘.\n전체 차례:\n${others}\n\n지금 쓸 소제목: ${s.heading}\n다룰 내용: ${s.points || "(소제목에 맞게)"}\n길이: 공백 포함 약 ${chars}자, 문단 구분은 \\n\\n.\n다른 소제목에서 다룰 내용은 되풀이하지 마. ${source}${last ? " 의견('제 생각에는…')은 여기에 붙여." : ""}\n\n형식:\n{"body":""}\n\n소식:\n${newsBlock(r.items)}`,
+      content: `블로그 글 '${outline.title}'의 소제목 하나를 써 줘.\n전체 차례:\n${others}\n\n지금 쓸 소제목: ${s.heading}\n다룰 내용: ${s.points || "(소제목에 맞게)"}\n길이: 공백 포함 약 ${chars}자, 문단 구분은 \\n\\n.\n다른 소제목에서 다룰 내용은 되풀이하지 마. ${source}${last ? " 의견('제 생각에는…')은 여기에 붙여." : ""}\n${guideBlock(r.items)}\n\n형식:\n{"body":""}\n\n소식:\n${newsBlock(r.items)}`,
     },
   ];
 }

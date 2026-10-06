@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { BUILDINGS, type RoomObject } from "./data/buildings";
 import { NEWS, SEED_DRAFTS, SEED_POSTS, type Blog, type Card, type Draft, type Meeting, type NewsItem, type Post } from "./data/demo";
 import { DEFAULT_BRAND, DEFAULT_PROMPTS, type BrandVoice } from "./gen/prompt";
+import { CATEGORIES, normCategory } from "./news/category";
 import { mergeNews } from "./news/rss";
 
 export type SceneId = "overview" | string; // 본관 전체 또는 방 id
@@ -219,6 +220,8 @@ export const useLab = create<LabState>()(
       // 새로 생긴 기본값(예: 지시문)은 저장된 값 아래에 깔아 둬요
       merge: (saved, cur) => {
         const s = (saved ?? {}) as Partial<SavedData>;
+        // 예전 분야 이름(개발·업계)으로 저장된 소식은 지금 분야로
+        if (s.library) s.library = s.library.map((n) => (CATEGORIES.includes(n.category) ? n : { ...n, category: normCategory(n.category) }));
         return { ...cur, ...s, staff: { ...cur.staff, ...Object.fromEntries(Object.entries(s.staff ?? {}).map(([k, v]) => [k, { ...cur.staff[k], ...v }])) } };
       },
     },

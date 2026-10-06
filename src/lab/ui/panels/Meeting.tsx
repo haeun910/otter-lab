@@ -35,8 +35,8 @@ function MeetingIdle() {
   return (
     <div className="pn">
       <p>
-        매일 <strong>{fmtHM(parseHM(meetingAt))}</strong>이 되면 연구원들이 이 탁자에 모여요. 루미가 오늘 소식에서 추천을 골라 오고, 나래가 성과를, 바다가 게시 대기 초안을 보고해요. 소장님이 정하면
-        모모와 테오가 초안을 써요.
+        매일 <strong>{fmtHM(parseHM(meetingAt))}</strong>이 되면 연구원들이 이 탁자에 모여요. 루미가 오늘 소식에서 추천을 골라 오고, 나래가 성과를, 바다가 게시
+        대기 초안을 보고해요. 소장님이 정하면 모모와 테오가 초안을 써요.
       </p>
       {held && <p className="muted">오늘 회의는 이미 했어요. 회의록에서 내용을 볼 수 있어요.</p>}
       <footer className="pn__foot">
@@ -62,8 +62,11 @@ function Agenda() {
   const drafts = useLab((s) => s.drafts);
   const posts = useLab((s) => s.posts);
   // 회의를 연 순간의 추천을 그대로 써요 (회의 중에 목록이 흔들리지 않게)
-  const bundleCount = useLab((s) => writingOf(s.brand).bundleCount);
-  const [picks] = useState(() => recommend(library, inbox, drafts, bundleCount));
+  const brand = useLab((s) => s.brand);
+  const [picks] = useState(() => {
+    const w = writingOf(brand);
+    return recommend(library, inbox, drafts, w.bundleCount, w.mix);
+  });
   const [bundle, setBundle] = useState<string[]>(picks.bundle);
   const [deep, setDeep] = useState<string | null>(picks.deep);
   const [memo, setMemo] = useState("");
@@ -77,7 +80,8 @@ function Agenda() {
       <section>
         <Speaker id="receiver" topic="오늘 들어온 소식" />
         <p className="muted">
-          소식 {inbox.length}개 중 아직 다루지 않은 후보 {picks.candidates.length}개를 골라 왔어요. ★는 루미 추천이에요. 묶음은 2~{BUNDLE_MAX}개, 심층은 1개를 골라 주세요.
+          소식 {inbox.length}개 중 아직 다루지 않은 후보 {picks.candidates.length}개를 분야별로 골라 왔어요. ★는 루미 추천이에요 (분야 비율은 소장 책상에서
+          바꿔요). 묶음은 2~{BUNDLE_MAX}개, 심층은 1개를 골라 주세요.
         </p>
         {picks.candidates.length ? (
           <ul className="news news--compact agenda__news">
@@ -92,15 +96,24 @@ function Agenda() {
                       묶음
                     </label>
                     <label>
-                      <input type="radio" name="deep" checked={deep === n.link} onChange={() => (setDeep(n.link), setBundle((b) => b.filter((x) => x !== n.link)))} />
+                      <input
+                        type="radio"
+                        name="deep"
+                        checked={deep === n.link}
+                        onChange={() => (setDeep(n.link), setBundle((b) => b.filter((x) => x !== n.link)))}
+                      />
                       심층
                     </label>
                   </div>
                   <div className="news__main">
                     <p className="news__meta">
-                      {rec && <span className="star" aria-label="추천">★</span>}
+                      {rec && (
+                        <span className="star" aria-label="추천">
+                          ★
+                        </span>
+                      )}
                       <span className={`cat cat--${n.category}`}>{n.category}</span>
-                      {n.source}
+                      {n.source} · {n.region}
                     </p>
                     <a href={n.link} target="_blank" rel="noreferrer" className="news__title">
                       {n.title}
@@ -182,7 +195,12 @@ export function MinutesPanel() {
       <div className="pn__bar">
         <label className="field field--inline">
           <span>매일 회의 시간 (한국 시간)</span>
-          <input id="meeting-at" type="time" value={schedule.meetingAt} onChange={(e) => e.target.value && setSchedule({ ...schedule, meetingAt: e.target.value })} />
+          <input
+            id="meeting-at"
+            type="time"
+            value={schedule.meetingAt}
+            onChange={(e) => e.target.value && setSchedule({ ...schedule, meetingAt: e.target.value })}
+          />
         </label>
         <span className="muted">이 화면을 열어 두면 시간에 맞춰 모여요</span>
       </div>

@@ -754,16 +754,59 @@ body {
   font-family: var(--display);
 }
 .cat--AI {
-  background: #e6f1f2;
-  color: #3c7aa0;
+  background: #e3eefb;
+  color: #2f5f9e;
 }
-.cat--개발 {
+.cat--Tech {
+  background: #f1ece2;
+  color: #6b5330;
+}
+.cat--Dev {
   background: #e2f2e6;
-  color: #3d7f63;
+  color: #2f7350;
 }
-.cat--업계 {
-  background: #fff1cc;
-  color: #7a5b00;
+.cat--Paper {
+  background: #efe6f7;
+  color: #6a4a92;
+}
+.cat--Tools {
+  background: #fdebd9;
+  color: #a2531e;
+}
+
+/* 묶음 분야 비율 */
+.mix {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+.mix__row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.mix__row .cat {
+  justify-self: start;
+}
+.mix__desc {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.mix .field > span:first-child {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+@media (max-width: 720px) {
+  .mix__row {
+    grid-template-columns: 60px 1fr;
+  }
+  .mix__row .field {
+    grid-column: 1 / -1;
+  }
 }
 
 /* 카드뉴스 미리보기 (4:5) */

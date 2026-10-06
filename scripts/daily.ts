@@ -6,10 +6,12 @@ import { fromRows, toRows } from "../src/lab/cloud/mapping";
 import { cleanKey, cleanUrl, selectRows, upsertRows, type Cloud } from "../src/lab/cloud/rest";
 import { BUILDINGS } from "../src/lab/data/buildings";
 import type { Draft, Meeting, NewsItem } from "../src/lab/data/demo";
-import { groqNotes, groqReady, writeWithGroq } from "../src/lab/gen/groq";
+import { groqLLM, groqNotes, groqReady, writeWithGroq } from "../src/lab/gen/groq";
 import { DEFAULT_BRAND, DEFAULT_PROMPTS, writingOf, type BrandVoice } from "../src/lab/gen/prompt";
 import { templateBlog, templateDeck } from "../src/lab/gen/template";
 import { FEEDS } from "../src/lab/news/feeds";
+import { CATEGORIES } from "../src/lab/news/category";
+import { refineCategories } from "../src/lab/news/classifyLLM";
 import { collectNews, mergeNews } from "../src/lab/news/rss";
 import { sendDiscord } from "../src/lab/notify/discord";
 import { sendTelegram } from "../src/lab/notify/telegram";
@@ -44,15 +46,25 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
     ...((data.staff as Staff) ?? {}),
   };
 
-  // 1. 루미: 소식 받기
+  // 1. 루미: 소식 받기 (분야가 애매한 소식은 Groq에게 한 번 더 물어봐요)
   const news = await collectNews(FEEDS);
+  const notes: string[] = [];
+  if (groqReady() && news.unsure.length) {
+    try {
+      news.items = (await refineCategories(news.items, news.unsure, groqLLM)).items;
+    } catch (e) {
+      notes.push(`분야 다시 가리기를 못 했어요 (${String((e as Error)?.message ?? e).slice(0, 80)}). 규칙으로 가린 분야를 그대로 써요.`);
+    }
+  }
+  if (news.failed.length) notes.push(`소식을 못 받은 곳: ${news.failed.join(", ")}`);
   const library = mergeNews(news.items, data.library ?? []);
-  const inbox = news.items.length ? news.items.map((n) => n.link) : data.inbox ?? [];
+  const inbox = news.items.length ? news.items.map((n) => n.link) : (data.inbox ?? []);
   await upsertRows(cloud, toRows({ library: news.items, inbox, lastFetch: news.fetchedAt }));
 
   // 2. 루미 추천대로 오늘 할 일 정하기
   const drafts = data.drafts ?? [];
-  const picks = recommend(library, inbox, drafts, writingOf(brand).bundleCount);
+  const plan = writingOf(brand);
+  const picks = recommend(library, inbox, drafts, plan.bundleCount, plan.mix);
   const byLink = new Map(library.map((n) => [n.link, n]));
   const bundle = picks.bundle.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n));
   const deep = picks.deep ? byLink.get(picks.deep) : undefined;
@@ -108,17 +120,26 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
   // 5. 소장님께 알림
   const label = (d: Draft) => d.deck.cards[0]?.title || d.blog.title;
   const title = `[오터랩] ${kstDay(now).slice(5).replace("-", "/")} ${fmtHM(kstMinutes(now))} 회의 끝`;
+  const perCat = CATEGORIES.map((c) => `${c} ${news.items.filter((n) => n.category === c).length}`).join(" · ");
   const lines = [
+    `받은 소식 ${news.items.length}개 (${perCat})`,
     made.length ? `루미가 고른 소식으로 초안 ${made.length}개를 썼어요.` : "오늘은 새로 다룰 소식이 없어서 초안을 쓰지 않았어요.",
     ...made.map((d) => `- ${d.type}: ${label(d)}${d.engine === "template" ? " (뼈대)" : ""}`),
+    ...(bundle.length ? [`묶음 분야: ${bundle.map((n) => n.category).join(", ")}`] : []),
     `검토 대기 ${waiting}개. 공방에서 확인하고 우편선으로 보내 주세요.`,
-    ...problems.map((p) => `참고: ${p}`),
+    ...[...notes, ...problems].map((p) => `참고: ${p}`),
   ];
   const message = [title, ...lines, ...(env.labUrl ? [env.labUrl] : [])].join("\n");
   // 알림은 한쪽이 실패해도 다른 쪽은 보내요
   const fails: string[] = [];
   if (env.telegramToken && env.telegramChat) await sendTelegram(env.telegramToken, env.telegramChat, message).catch((e) => fails.push(String(e?.message ?? e)));
-  if (env.discordWebhook) await sendDiscord(env.discordWebhook, { title, lines: [...lines, ...(env.labUrl ? [env.labUrl] : [])], url: env.labUrl, mention: env.discordMention }).catch((e) => fails.push(String(e?.message ?? e)));
+  if (env.discordWebhook)
+    await sendDiscord(env.discordWebhook, {
+      title,
+      lines: [...lines, ...(env.labUrl ? [env.labUrl] : [])],
+      url: env.labUrl,
+      mention: env.discordMention,
+    }).catch((e) => fails.push(String(e?.message ?? e)));
   if (fails.length) throw new Error(`회의는 끝났지만 알림을 못 보냈어요: ${fails.join(" / ")}`);
   return { ran: true, reason: "회의를 했어요", drafts: made, message };
 }

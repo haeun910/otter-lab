@@ -1,5 +1,6 @@
 // 연구소 상태(SavedData) ↔ lab_items 줄. 바뀐 것만 골라 올리는 비교도 여기서 해요.
 import type { Draft, Meeting, NewsItem, Post } from "../data/demo";
+import { normCategory } from "../news/category";
 import type { Kind, Row } from "./rest";
 
 /** 클라우드에 올리는 부분 (담기·보고 있는 초안 같은 화면 상태는 이 기기에만) */
@@ -39,7 +40,8 @@ export function fromRows(rows: Row[]): Partial<CloudData> {
       continue;
     }
     const c = COLLS.find((x) => x.kind === r.kind);
-    if (c) (out[c.key] as unknown[]).push(r.data);
+    // 예전 분야 이름(개발·업계)으로 저장된 소식은 지금 분야로 읽어요
+    if (c) (out[c.key] as unknown[]).push(r.kind === "news" ? { ...(r.data as NewsItem), category: normCategory((r.data as NewsItem).category) } : r.data);
   }
   out.library!.sort((a, b) => b.publishedAt - a.publishedAt);
   out.drafts!.sort((a, b) => b.createdAt - a.createdAt);

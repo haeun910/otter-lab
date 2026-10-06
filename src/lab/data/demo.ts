@@ -2,6 +2,7 @@
 // 소식 목록은 10월 5일에 실제 RSS에서 모은 기사 제목·요약이고,
 // 카드뉴스·블로그 글은 그 요약만 바탕으로 손으로 쓴 예시예요.
 // 새 소식 받기·초안 만들기를 하면 진짜 데이터가 이 위에 쌓여요.
+import { classify, normCategory, type Category } from "../news/category";
 import snapshot from "./news-snapshot.json";
 
 export interface NewsItem {
@@ -9,12 +10,18 @@ export interface NewsItem {
   link: string;
   source: string;
   region: "국내" | "해외";
-  category: "AI" | "개발" | "업계";
+  category: Category;
   publishedAt: number;
   excerpt: string;
+  score?: number; // 인기도 (논문 추천 수, 저장소 별 수, 모델 좋아요 수…). 있으면 회의 추천에 보태요
 }
 
-export const NEWS = snapshot as NewsItem[];
+// 예시 소식은 예전 분류(AI·개발·업계)로 모은 거라, 지금 규칙(AI·Tech·Dev·Paper·Tools)으로 다시 가려요
+export const NEWS = (snapshot as unknown as NewsItem[]).map((n) => {
+  const old = normCategory(n.category);
+  const v = classify(n.title, n.excerpt, n.link, old);
+  return { ...n, category: v.category === "Tech" && old !== "Tech" ? old : v.category };
+});
 
 export interface Card {
   kind: "cover" | "body" | "outro";

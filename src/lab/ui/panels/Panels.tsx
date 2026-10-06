@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUILDINGS } from "../../data/buildings";
 import type { Draft, DraftType, NewsItem } from "../../data/demo";
-import { writeJob } from "../../company";
+import { quotas, writeJob } from "../../company";
+import { CATEGORIES, CATEGORY_INFO } from "../../news/category";
 import { aiFailText, fetchNews, fetchStatus, remoteLLM } from "../../gen/client";
 import { blogLength, rewriteDeck, rewriteSection } from "../../gen/pipeline";
 import { LENGTHS, blogTarget, designOf, writingOf, type CardDesign, type DraftRequest, type WritingPlan } from "../../gen/prompt";
@@ -11,11 +12,12 @@ import { ACCENTS, FONTS, THEMES, draftImages, saveFiles } from "../../render/car
 import { draftLabel, pickCurrent, useLab, type SavedData } from "../../store";
 import CardPreview from "../CardPreview";
 
-const CATS = ["전체", "AI", "개발", "업계"] as const;
+const CATS = ["전체", ...CATEGORIES] as const;
 const fmtTime = (t: number) =>
   new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }).format(t);
 const fmtDay = (t: number) => new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", timeZone: "Asia/Seoul" }).format(t);
-const fmtShort = (t: number) => new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", timeZone: "Asia/Seoul" }).format(t).replace(/\.\s?/g, "/").replace(/\/$/, "");
+const fmtShort = (t: number) =>
+  new Intl.DateTimeFormat("ko-KR", { month: "numeric", day: "numeric", timeZone: "Asia/Seoul" }).format(t).replace(/\.\s?/g, "/").replace(/\/$/, "");
 
 const ENGINE: Record<Draft["engine"], string> = { groq: "Groq", template: "뼈대", sample: "예시" };
 const BUNDLE_MAX = 6;
@@ -54,7 +56,14 @@ function ListField({ id, label, value, sep, onCommit }: { id: string; label: str
         rows={2}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onBlur={() => onCommit(text.split(sep === " " ? /\s+/ : /\s*,\s*/).map((t) => t.trim()).filter(Boolean))}
+        onBlur={() =>
+          onCommit(
+            text
+              .split(sep === " " ? /\s+/ : /\s*,\s*/)
+              .map((t) => t.trim())
+              .filter(Boolean),
+          )
+        }
       />
     </label>
   );
@@ -203,7 +212,8 @@ export function InboxPanel() {
     const fresh = res.items.filter((n) => !st.library.some((x) => x.link === n.link)).length;
     st.receiveNews(res.items, res.fetchedAt);
     st.say(
-      `소식 ${res.items.length}개를 받았어요${fresh ? ` (새 소식 ${fresh}개)` : ""}.` + (res.failed.length ? ` ${res.failed.join(", ")}은(는) 이번에 받지 못했어요.` : ""),
+      `소식 ${res.items.length}개를 받았어요${fresh ? ` (새 소식 ${fresh}개)` : ""}.` +
+        (res.failed.length ? ` ${res.failed.join(", ")}은(는) 이번에 받지 못했어요.` : ""),
     );
   };
 
@@ -273,7 +283,14 @@ function RewriteBox({ id, chips, label, onRun }: { id: string; chips: string[]; 
           void run(text);
         }}
       >
-        <input id={id} aria-label="직접 요청하기" placeholder="직접 요청 (예: 숫자를 더 강조해 줘)" value={text} onChange={(e) => setText(e.target.value)} disabled={busy} />
+        <input
+          id={id}
+          aria-label="직접 요청하기"
+          placeholder="직접 요청 (예: 숫자를 더 강조해 줘)"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          disabled={busy}
+        />
         <button className="btn btn--light" type="submit" disabled={busy || !text.trim()}>
           다시 쓰기
         </button>
@@ -307,7 +324,13 @@ export function CardEditorPanel() {
       </div>
       <div className="strip" role="list">
         {cards.map((c, k) => (
-          <button key={k} role="listitem" className={`strip__item ${k === i ? "strip__item--on" : ""}`} onClick={() => setSel(k)} aria-label={`${k + 1}번째 카드`}>
+          <button
+            key={k}
+            role="listitem"
+            className={`strip__item ${k === i ? "strip__item--on" : ""}`}
+            onClick={() => setSel(k)}
+            aria-label={`${k + 1}번째 카드`}
+          >
             <CardPreview card={c} page={k + 1} {...look} />
             <span>{k + 1}</span>
           </button>
@@ -350,7 +373,13 @@ export function CardEditorPanel() {
             <span>캡션</span>
             <textarea id={`cap-${id}`} rows={5} value={draft.deck.caption} onChange={(e) => editDeck(id, { caption: e.target.value })} />
           </label>
-          <ListField id={`hash-${id}`} label="해시태그 (띄어쓰기로 구분)" value={draft.deck.hashtags} sep=" " onCommit={(v) => editDeck(id, { hashtags: v.map((t) => t.replace(/^#*/, "#")) })} />
+          <ListField
+            id={`hash-${id}`}
+            label="해시태그 (띄어쓰기로 구분)"
+            value={draft.deck.hashtags}
+            sep=" "
+            onCommit={(v) => editDeck(id, { hashtags: v.map((t) => t.replace(/^#*/, "#")) })}
+          />
           <RewriteBox
             id={`rw-deck-${id}`}
             label="카드 문구 전체를 AI에게 다시 쓰게 하기 (장수는 그대로)"
@@ -408,7 +437,13 @@ export function PrinterPanel() {
       </div>
       <div className="print__grid">
         {draft.deck.cards.map((c, i) => (
-          <button key={i} className="print__item" disabled={!!busy} onClick={() => printDraft(draft, i).then(showPrints)} aria-label={`${i + 1}번째 카드 이미지로 저장`}>
+          <button
+            key={i}
+            className="print__item"
+            disabled={!!busy}
+            onClick={() => printDraft(draft, i).then(showPrints)}
+            aria-label={`${i + 1}번째 카드 이미지로 저장`}
+          >
             <CardPreview card={c} page={i + 1} {...look} />
           </button>
         ))}
@@ -425,7 +460,10 @@ export function PrinterPanel() {
         </section>
       )}
       <footer className="pn__foot">
-        <span className="muted">{designOf(brand).size === "square" ? "1080×1080" : "1080×1350"} PNG로 뽑아요. 디자인은 소장실 책상에서 바꿔요. 휴대폰에서는 공유 창이 열려 사진에 저장할 수 있어요.</span>
+        <span className="muted">
+          {designOf(brand).size === "square" ? "1080×1080" : "1080×1350"} PNG로 뽑아요. 디자인은 소장실 책상에서 바꿔요. 휴대폰에서는 공유 창이 열려 사진에
+          저장할 수 있어요.
+        </span>
         <button className="btn btn--primary" disabled={!!busy} onClick={() => printDraft(draft).then(showPrints)}>
           {busy === "print" ? "인쇄하는 중…" : `${draft.deck.cards.length}장 모두 인쇄하기`}
         </button>
@@ -493,8 +531,20 @@ export function BlogPanel() {
             <fieldset key={k} className="blog-edit__sec">
               <legend>소제목 {k + 1}</legend>
               <input id={`bh-${id}-${k}`} aria-label={`소제목 ${k + 1}`} value={s.heading} onChange={(e) => setSection(k, { heading: e.target.value })} />
-              <textarea id={`bb-${id}-${k}`} aria-label={`소제목 ${k + 1} 본문`} rows={8} value={s.body} onChange={(e) => setSection(k, { body: e.target.value })} />
-              <input id={`bp-${id}-${k}`} aria-label={`소제목 ${k + 1} 사진 설명`} placeholder="사진 자리 설명 (비우면 사진 없음)" value={s.photo ?? ""} onChange={(e) => setSection(k, { photo: e.target.value })} />
+              <textarea
+                id={`bb-${id}-${k}`}
+                aria-label={`소제목 ${k + 1} 본문`}
+                rows={8}
+                value={s.body}
+                onChange={(e) => setSection(k, { body: e.target.value })}
+              />
+              <input
+                id={`bp-${id}-${k}`}
+                aria-label={`소제목 ${k + 1} 사진 설명`}
+                placeholder="사진 자리 설명 (비우면 사진 없음)"
+                value={s.photo ?? ""}
+                onChange={(e) => setSection(k, { photo: e.target.value })}
+              />
               <RewriteBox
                 id={`rw-sec-${id}-${k}`}
                 label={`이 소제목을 AI에게 다시 쓰게 하기 (지금 ${(s.heading.length + s.body.length).toLocaleString()}자)`}
@@ -518,7 +568,13 @@ export function BlogPanel() {
             <span>맺는 말</span>
             <textarea id={`bo-${id}`} rows={3} value={b.outro} onChange={(e) => editBlog(id, { outro: e.target.value })} />
           </label>
-          <ListField id={`btag-${id}`} label="태그 (쉼표로 구분)" value={b.tags} sep=", " onCommit={(v) => editBlog(id, { tags: v.map((t) => t.replace(/^#+/, "")) })} />
+          <ListField
+            id={`btag-${id}`}
+            label="태그 (쉼표로 구분)"
+            value={b.tags}
+            sep=", "
+            onCommit={(v) => editBlog(id, { tags: v.map((t) => t.replace(/^#+/, "")) })}
+          />
         </div>
       )}
       <footer className="pn__foot">
@@ -567,7 +623,11 @@ export function MailboatPanel() {
       const how = await saveFiles(files, caption);
       if (how === "cancelled") return;
       setPacked(true);
-      say(how === "shared" ? "인스타그램에서 올리고 나면 '게시 완료'를 눌러 주세요." : "카드를 저장하고 캡션을 복사했어요. 인스타그램에 올리고 나면 '게시 완료'를 눌러 주세요.");
+      say(
+        how === "shared"
+          ? "인스타그램에서 올리고 나면 '게시 완료'를 눌러 주세요."
+          : "카드를 저장하고 캡션을 복사했어요. 인스타그램에 올리고 나면 '게시 완료'를 눌러 주세요.",
+      );
     } catch {
       say("짐을 꾸리지 못했어요. 다시 한번 눌러 주세요.");
     } finally {
@@ -717,14 +777,27 @@ export function StatsPanel() {
               <tr key={s.id}>
                 <td>{fmtShort(s.postedAt)}</td>
                 <td>
-                  {s.title} <span className="muted">{s.type}{s.sample ? " · 예시" : ""}</span>
+                  {s.title}{" "}
+                  <span className="muted">
+                    {s.type}
+                    {s.sample ? " · 예시" : ""}
+                  </span>
                 </td>
                 {(["likes", "saves", "reach"] as const).map((k) => (
                   <td key={k}>
                     {s.sample ? (
                       s[k].toLocaleString()
                     ) : (
-                      <input className="num" id={`${k}-${s.id}`} type="number" min={0} inputMode="numeric" aria-label={`${s.title} ${k === "likes" ? "좋아요" : k === "saves" ? "저장" : "도달"}`} value={s[k]} onChange={(e) => editPost(s.id, { [k]: num(e.target.value) })} />
+                      <input
+                        className="num"
+                        id={`${k}-${s.id}`}
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`${s.title} ${k === "likes" ? "좋아요" : k === "saves" ? "저장" : "도달"}`}
+                        value={s[k]}
+                        onChange={(e) => editPost(s.id, { [k]: num(e.target.value) })}
+                      />
                     )}
                   </td>
                 ))}
@@ -759,8 +832,18 @@ export function RosterPanel() {
           <li key={b.id}>
             <span className="roster__swatch" style={{ background: b.roof }} />
             <div className="roster__who">
-              <input id={`st-title-${b.id}`} aria-label={`${b.name} 직원 직함`} value={staff[b.id].title} onChange={(e) => edit(b.id, { ...staff[b.id], title: e.target.value })} />
-              <input id={`st-name-${b.id}`} aria-label={`${b.name} 직원 이름`} value={staff[b.id].name} onChange={(e) => edit(b.id, { ...staff[b.id], name: e.target.value })} />
+              <input
+                id={`st-title-${b.id}`}
+                aria-label={`${b.name} 직원 직함`}
+                value={staff[b.id].title}
+                onChange={(e) => edit(b.id, { ...staff[b.id], title: e.target.value })}
+              />
+              <input
+                id={`st-name-${b.id}`}
+                aria-label={`${b.name} 직원 이름`}
+                value={staff[b.id].name}
+                onChange={(e) => edit(b.id, { ...staff[b.id], name: e.target.value })}
+              />
             </div>
             <div className="roster__role">
               <strong>{b.name}</strong>
@@ -776,7 +859,12 @@ export function RosterPanel() {
                     </button>
                   )}
                 </span>
-                <textarea id={`st-prompt-${b.id}`} rows={3} value={staff[b.id].prompt ?? ""} onChange={(e) => edit(b.id, { ...staff[b.id], prompt: e.target.value })} />
+                <textarea
+                  id={`st-prompt-${b.id}`}
+                  rows={3}
+                  value={staff[b.id].prompt ?? ""}
+                  onChange={(e) => edit(b.id, { ...staff[b.id], prompt: e.target.value })}
+                />
               </label>
             )}
           </li>
@@ -895,7 +983,13 @@ function CardDesignSettings() {
       <h3 className="pn__h">카드뉴스 디자인</h3>
       <div className="themes" role="radiogroup" aria-label="카드 테마">
         {THEMES.map((t) => (
-          <button key={t.id} role="radio" aria-checked={design.theme === t.id} className={`theme ${design.theme === t.id ? "theme--on" : ""}`} onClick={() => set({ theme: t.id })}>
+          <button
+            key={t.id}
+            role="radio"
+            aria-checked={design.theme === t.id}
+            className={`theme ${design.theme === t.id ? "theme--on" : ""}`}
+            onClick={() => set({ theme: t.id })}
+          >
             <CardPreview card={SAMPLE_COVER} page={1} total={7} design={{ ...design, theme: t.id }} />
             <strong>{t.name}</strong>
             <span>{t.about}</span>
@@ -907,7 +1001,13 @@ function CardDesignSettings() {
           <span>포인트 색</span>
           <div className="accents">
             {ACCENTS.map((c) => (
-              <button key={c} className={`accent ${design.accent.toLowerCase() === c.toLowerCase() ? "accent--on" : ""}`} style={{ background: c }} aria-label={`포인트 색 ${c}`} onClick={() => set({ accent: c })} />
+              <button
+                key={c}
+                className={`accent ${design.accent.toLowerCase() === c.toLowerCase() ? "accent--on" : ""}`}
+                style={{ background: c }}
+                aria-label={`포인트 색 ${c}`}
+                onClick={() => set({ accent: c })}
+              />
             ))}
             <label className="accent accent--pick" title="직접 고르기">
               <span className="sr-only">포인트 색 직접 고르기</span>
@@ -939,7 +1039,23 @@ function CardDesignSettings() {
   );
 }
 
-function Stepper({ id, label, value, min, max, unit, onChange }: { id: string; label: string; value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) {
+function Stepper({
+  id,
+  label,
+  value,
+  min,
+  max,
+  unit,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  unit: string;
+  onChange: (v: number) => void;
+}) {
   return (
     <div className="field">
       <span id={id}>{label}</span>
@@ -970,24 +1086,70 @@ function WritingSettings() {
     <section className="settings">
       <h3 className="pn__h">글 분량</h3>
       <div className="form2">
-        <Stepper id="w-bundle" label="묶음 카드뉴스 소식 수 (카드는 +2장)" value={w.bundleCount} min={2} max={6} unit="개" onChange={(v) => set({ bundleCount: v })} />
-        <Stepper id="w-deep" label="심층 카드뉴스 본문 장수 (카드는 +2장)" value={w.deepCards} min={3} max={6} unit="장" onChange={(v) => set({ deepCards: v })} />
+        <Stepper
+          id="w-bundle"
+          label="묶음 카드뉴스 소식 수 (카드는 +2장)"
+          value={w.bundleCount}
+          min={2}
+          max={6}
+          unit="개"
+          onChange={(v) => set({ bundleCount: v })}
+        />
+        <Stepper
+          id="w-deep"
+          label="심층 카드뉴스 본문 장수 (카드는 +2장)"
+          value={w.deepCards}
+          min={3}
+          max={6}
+          unit="장"
+          onChange={(v) => set({ deepCards: v })}
+        />
         <div className="field">
           <span>묶음 블로그 길이</span>
-          <Seg value={lengthName(w.bundleLength)} options={LENGTHS.map((l) => l.label)} onChange={(v) => set({ bundleLength: pickLength(v) })} label="묶음 블로그 길이" />
+          <Seg
+            value={lengthName(w.bundleLength)}
+            options={LENGTHS.map((l) => l.label)}
+            onChange={(v) => set({ bundleLength: pickLength(v) })}
+            label="묶음 블로그 길이"
+          />
         </div>
         <div className="field">
           <span>심층 블로그 길이</span>
-          <Seg value={lengthName(w.deepLength)} options={LENGTHS.map((l) => l.label)} onChange={(v) => set({ deepLength: pickLength(v) })} label="심층 블로그 길이" />
+          <Seg
+            value={lengthName(w.deepLength)}
+            options={LENGTHS.map((l) => l.label)}
+            onChange={(v) => set({ deepLength: pickLength(v) })}
+            label="심층 블로그 길이"
+          />
         </div>
       </div>
       <p className="muted">
-        짧게 1,500자 · 보통 2,500자 · 길게 4,000자 · 아주 길게 6,000자 (공백 포함). 2,000자가 넘으면 설계도를 먼저 짜고 소제목마다 나눠 써서 시간이 조금 더 걸려요.
+        짧게 1,500자 · 보통 2,500자 · 길게 4,000자 · 아주 길게 6,000자 (공백 포함). 2,000자가 넘으면 설계도를 먼저 짜고 소제목마다 나눠 써서 시간이 조금 더
+        걸려요.
       </p>
       <label className="check">
         <input id="w-photos" type="checkbox" checked={w.photos} onChange={(e) => set({ photos: e.target.checked })} />
         <span>블로그 소제목마다 사진 자리와 사진 설명(대체 텍스트)을 넣어 줘요</span>
       </label>
+      <h3 className="pn__h">묶음 카드뉴스 분야 비율</h3>
+      <p className="muted">루미가 회의 때 이 비율대로 소식을 골라 와요. 0이면 그 분야는 빼요. 국내·해외 매체는 반반쯤 섞어요.</p>
+      <div className="mix">
+        {CATEGORIES.map((c) => (
+          <div key={c} className="mix__row" title={CATEGORY_INFO[c].desc}>
+            <span className={`cat cat--${c}`}>{c}</span>
+            <span className="mix__desc">{CATEGORY_INFO[c].desc}</span>
+            <Stepper id={`w-mix-${c}`} label={`${c} 비율`} value={w.mix[c]} min={0} max={3} unit="" onChange={(v) => set({ mix: { ...w.mix, [c]: v } })} />
+          </div>
+        ))}
+      </div>
+      <p className="muted">
+        지금 설정이면 묶음 {w.bundleCount}개를{" "}
+        {CATEGORIES.map((c) => [c, quotas(w.bundleCount, w.mix)[c]] as const)
+          .filter(([, n]) => n > 0)
+          .map(([c, n]) => `${c} ${n}`)
+          .join(" · ")}
+        개로 골라요.
+      </p>
     </section>
   );
 }
@@ -998,7 +1160,14 @@ export function BrandPanel() {
   const server = useServerStatus();
   const cloud = useLab((s) => s.cloud);
   const set = (k: "handle" | "series" | "tone" | "deepTone", v: string) => setBrand({ ...brand, [k]: v });
-  const ai = server === "loading" ? "확인하는 중…" : !server ? "서버 없이 열려 있어요 (뼈대 초안으로 대신 써요)" : server.groq ? `연결됨 (${server.model})` : "키가 없어요 (.env.local에 GROQ_API_KEY)";
+  const ai =
+    server === "loading"
+      ? "확인하는 중…"
+      : !server
+        ? "서버 없이 열려 있어요 (뼈대 초안으로 대신 써요)"
+        : server.groq
+          ? `연결됨 (${server.model})`
+          : "키가 없어요 (.env.local에 GROQ_API_KEY)";
   return (
     <div className="pn">
       <div className="form2">
@@ -1042,7 +1211,13 @@ export function BrandPanel() {
           <dt>로그인·저장</dt>
           <dd>{cloud === "off" ? "이 브라우저에만 저장돼요" : "Supabase에 저장돼요"}</dd>
           <dd className="muted">
-            {cloud === "off" ? "Supabase 주소를 넣고 배포하면 어디서나 열려요" : cloud === "error" ? "저장에 실패해서 다시 시도하고 있어요" : cloud === "saving" ? "저장하는 중…" : "모두 저장됨"}
+            {cloud === "off"
+              ? "Supabase 주소를 넣고 배포하면 어디서나 열려요"
+              : cloud === "error"
+                ? "저장에 실패해서 다시 시도하고 있어요"
+                : cloud === "saving"
+                  ? "저장하는 중…"
+                  : "모두 저장됨"}
             {cloud !== "off" && (
               <button className="link-btn" onClick={() => void import("../../cloud/session").then((m) => m.signOut())}>
                 로그아웃
@@ -1103,7 +1278,9 @@ export function DraftsPanel() {
         ))}
       </ul>
       <footer className="pn__foot">
-        <span className="muted">검토 대기 {drafts.filter((d) => d.status === "검토 대기").length}개, 게시함 {drafts.filter((d) => d.status === "게시함").length}개</span>
+        <span className="muted">
+          검토 대기 {drafts.filter((d) => d.status === "검토 대기").length}개, 게시함 {drafts.filter((d) => d.status === "게시함").length}개
+        </span>
         <button className="btn btn--primary" onClick={() => travel("receiver")}>
           새 초안 만들러 가기
         </button>

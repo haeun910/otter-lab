@@ -6,7 +6,10 @@ import { deepTags, writingOf, type BrandVoice } from "./prompt";
 /** 문장 단위로 자르고, 글자 수를 넘지 않게 묶어요 */
 export function sentences(text: string): string[] {
   // "Ceramic.ai"·"1.5"처럼 마침표 뒤에 띄어쓰기가 없으면 문장 끝이 아니에요
-  return text.split(/(?<=[.!?。…])\s+/).map((s) => s.trim()).filter(Boolean);
+  return text
+    .split(/(?<=[.!?。…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /** 낱말 경계에서 자르고 말줄임표를 붙여요 */
@@ -60,9 +63,12 @@ export function templateDeck(type: DraftType, items: NewsItem[], brand: BrandVoi
     const n = items[0];
     const ss = sentences(n.excerpt);
     // 설정한 장수만큼, 꼬리표 차례에 맞춰 (요약 문장은 앞 카드부터 두 문장씩)
-    const tags = deepTags(writingOf(brand).deepCards);
+    const tags = deepTags(writingOf(brand).deepCards, n.category);
     const body = tags.map((tag, i): Card => {
-      const part = ss.slice(i * 2, i * 2 + 2).map((s) => clip(s, 46)).join("\n");
+      const part = ss
+        .slice(i * 2, i * 2 + 2)
+        .map((s) => clip(s, 46))
+        .join("\n");
       return { kind: "body", tag, title: i === 0 ? short[0] : tag.replace(/\?$/, ""), body: part || "원문에서 이 부분에 맞는 내용을 골라 넣어 주세요." };
     });
     const cards: Card[] = [
@@ -77,8 +83,8 @@ export function templateDeck(type: DraftType, items: NewsItem[], brand: BrandVoi
     };
   }
   const cards: Card[] = [
-    { kind: "cover", title: `오늘의 AI 소식 ${items.length}가지`, body: `${short.slice(0, 2).join(", ")}까지, 수달이 골라 왔어요` },
-    ...items.map((n, i): Card => ({ kind: "body", tag: n.source, title: short[i], body: bodyLines(n) })),
+    { kind: "cover", title: `오늘의 AI·IT 소식 ${items.length}가지`, body: `${short.slice(0, 2).join(", ")}까지, 수달이 골라 왔어요` },
+    ...items.map((n, i): Card => ({ kind: "body", tag: n.category, title: short[i], body: bodyLines(n) })),
     { kind: "outro", title: "오늘의 정리", body: short.map((t) => `- ${t}`).join("\n") },
   ];
   return {
