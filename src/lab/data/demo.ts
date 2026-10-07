@@ -17,7 +17,7 @@ export interface NewsItem {
   title: string;
   link: string;
   source: string;
-  region: "국내" | "해외";
+  region: "국내" | "해외" | "미확인";
   category: Category;
   publishedAt: number;
   excerpt: string;
@@ -38,6 +38,7 @@ export interface Card {
   body: string;
   sections?: { heading: string; body: string }[];
   template?: CardTemplate;
+  factIds?: string[];
 }
 
 export type DraftType = "묶음" | "심층";
@@ -85,6 +86,7 @@ export interface Post {
 
 /** 회의 한 번의 기록 (회의록) */
 export interface Meeting {
+  topicProjects?: string[];
   id: string;
   day: string; // 한국 날짜 YYYY-MM-DD
   at: number; // 시작한 때

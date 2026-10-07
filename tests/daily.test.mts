@@ -1,4 +1,4 @@
-// 가짜 Supabase·RSS·Groq·텔레그램으로 자동 회의를 처음부터 끝까지 돌려 봐요
+// 가짜 Supabase·RSS·Groq·알림으로 주제 검토 회의를 처음부터 끝까지 돌려 봐요
 import assert from "node:assert/strict";
 import { db, sent, discord, fail, install, feedTime, groqModels, groqLimit } from "./fake.ts";
 import { runDaily } from "../scripts/daily.ts";
@@ -22,24 +22,24 @@ assert.match(r.reason, /회의 시간\(10:00\) 전/);
 delete process.env.GROQ_API_KEY;
 r = await runDaily(env, KST(10, 7));
 assert.equal(r.ran, true);
-assert.equal(r.drafts.length, 2);
-assert.deepEqual(r.drafts.map((d) => d.type), ["묶음", "심층"]);
-assert.ok(r.drafts.every((d) => d.engine === "template"));
-const bundleSources = r.drafts[0].sources;
-assert.ok(bundleSources.length >= 2 && bundleSources.length <= 5);
-assert.ok(!bundleSources.includes(r.drafts[1].sources[0]), "심층 소식은 묶음과 겹치지 않아요");
+assert.equal(r.drafts.length, 0, "Automatic meetings must wait for topic and outline approval");
+assert.equal(r.projects!.length, 2);
+assert.ok(r.projects!.every((p) => p.stage === "topic" && p.seeds.length === 1 && !p.sources.length && !p.outline.length && p.error));
+assert.notEqual(r.projects![0].seeds[0].link, r.projects![1].seeds[0].link);
 const data = fromRows([...db.values()] as never);
 assert.equal(data.meetings!.length, 1);
 assert.equal(data.meetings![0].day, "2026-10-06");
 assert.ok(data.meetings![0].notes[0].includes("자동 회의"));
 assert.ok(data.meetings![0].notes.some((n) => n.includes("GROQ_API_KEY가 없어서")));
-assert.equal(data.drafts!.length, 4);
+assert.equal(data.drafts!.length, 2);
+assert.equal(data.projects!.length, 2);
+assert.equal(data.meetings![0].topicProjects!.length, 2);
 assert.equal((data.inbox as string[]).length, 11);
 assert.ok(data.library!.some((n) => n.link === "https://ex.com/geek/0?a=1,2"));
 assert.equal(sent.length, 1);
 assert.match(sent[0], /\[오터랩\] 10\/06 오전 10:07 회의 끝/);
-assert.match(sent[0], /초안 2개/);
-assert.match(sent[0], /검토 대기 4개/);
+assert.match(sent[0], /주제 후보를 준비/);
+assert.match(sent[0], /기존 초안 검토 대기 2개/);
 assert.match(sent[0], /https:\/\/lab.example/);
 console.log("---- 텔레그램 메시지 ----\n" + sent[0] + "\n------------------------");
 
@@ -48,14 +48,15 @@ r = await runDaily(env, KST(11, 7));
 assert.equal(r.ran, false);
 assert.match(r.reason, /이미/);
 
-// 다음 날, Groq 키 있음 → Groq 초안, 이미 쓴 소식은 다시 안 골라요
+// 다음 날, Groq 키 있음 → Groq 주제 제안, 이미 쓴 소식은 다시 안 골라요
 process.env.GROQ_API_KEY = "k";
 feedTime.t = KST(9, 50, 7);
 r = await runDaily(env, KST(10, 7, 7));
 assert.equal(r.ran, true);
-assert.ok(r.drafts.every((d) => d.engine === "groq"));
-const used = new Set(fromRows([...db.values()] as never).drafts!.filter((d) => d.createdAt < KST(10, 0, 7)).flatMap((d) => d.sources));
-assert.ok(r.drafts.flatMap((d) => d.sources).every((l) => !used.has(l)), "어제 쓴 소식은 빼요");
+assert.ok(r.projects!.length && r.projects!.every((p) => p.proposals.length && !p.error));
+assert.equal(r.drafts.length,0);
+const used = new Set(fromRows([...db.values()] as never).projects!.filter((p) => p.createdAt < KST(10, 0, 7)).flatMap((p) => p.seeds.map((n)=>n.link)));
+assert.ok(r.projects!.flatMap((p)=>p.seeds.map((n)=>n.link)).every((l) => !used.has(l)), "어제 쓴 소식은 빼요");
 
 // 예전 service_role 키(JWT)도 돼요
 r = await runDaily({ ...env, serviceKey: "eyJ-legacy-service", force: true }, KST(9, 0, 7));
@@ -94,16 +95,17 @@ process.env.GROQ_MODEL = "gpt-oss-120b";
 groqModels.length = 0;
 r = await runDaily({ ...env, force: true }, KST(10, 7, 8));
 assert.ok(groqModels.length > 0 && groqModels.every((m) => m === "openai/gpt-oss-120b"), groqModels.join());
-assert.ok(r.drafts.every((d) => d.engine === "groq"));
+assert.ok(r.projects!.length && r.projects!.every((p) => p.proposals.length && !p.error));
+assert.equal(r.drafts.length,0);
 process.env.GROQ_MODEL = "openai/llama-retired";
 feedTime.t = KST(9, 50, 9);
 feedTime.tag = "-d9";
 r = await runDaily({ ...env, force: true }, KST(10, 7, 9));
-assert.ok(r.drafts.length && r.drafts.every((d) => d.engine === "groq"), "기본 모델로 바꿔서 결국 Groq가 써요");
+assert.ok(r.projects!.length && r.projects!.every((p) => p.proposals.length && !p.error), "기본 모델로 바꿔서 주제 후보를 제안해요");
 assert.match(r.message!, /GROQ_MODEL 'openai\/llama-retired'을 Groq에서 찾지 못해서 기본 모델/);
 delete process.env.GROQ_MODEL;
 
-// 분당 사용량 초과(429): 기다렸다가 다시 써서 결국 Groq 초안이 나와요
+// 분당 사용량 초과(429): 기다렸다가 다시 써서 결국 Groq 주제 제안이 나와요
 const { retryAfterMs } = await import("../src/lab/gen/groq.ts");
 assert.equal(retryAfterMs(new Response("", { headers: { "retry-after": "7" } }), ""), 7250);
 assert.equal(retryAfterMs(new Response(""), "Please try again in 1m2.5s."), 60250);
@@ -114,7 +116,8 @@ groqLimit.remaining = 2;
 const t0 = Date.now();
 r = await runDaily({ ...env, force: true }, KST(10, 7, 10));
 assert.equal(groqLimit.remaining, 0);
-assert.ok(r.drafts.length === 2 && r.drafts.every((d) => d.engine === "groq"), r.message);
+assert.ok(r.projects!.length === 2 && r.projects!.every((p)=>p.proposals.length && !p.error), r.message);
+assert.equal(r.drafts.length,0);
 assert.ok(Date.now() - t0 >= 1000, "Groq가 말한 만큼 기다려요");
 
 // 매핑·비교

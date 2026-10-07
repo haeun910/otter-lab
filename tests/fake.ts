@@ -57,6 +57,7 @@ export function install() {
         return json({ error: { message: `The model \`${body.model}\` does not exist or you do not have access to it.`, code: "model_not_found" } }, 404);
       const cards = body.messages[0].content.includes("카드뉴스");
       const ask = body.messages[1].content as string;
+      if (ask.includes("seedIndices")) return json({ choices: [{message:{content:JSON.stringify({topics:[{title:"뉴스를 바탕으로 조사할 주제",focus:"하나의 기술 변화와 배경을 설명",questions:["무엇이 바뀌었나?","작동 원리는?","한계는?"],seedIndices:[0]}]})}}]});
       if (ask.includes("설계도"))
         return json({ choices: [{ message: { content: JSON.stringify({ title: "긴 글", intro: "도입", sections: [1, 2, 3, 4, 5, 6].map((k) => ({ heading: `소제목 ${k}`, points: `내용 ${k}`, photo: `사진 ${k}` })), outro: "맺음", tags: ["AI"] }) } }] });
       if (ask.includes("소제목 하나를 써 줘")) {

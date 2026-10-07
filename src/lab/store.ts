@@ -1,3 +1,4 @@
+import type { TopicProject } from "./research/types";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { BUILDINGS, type RoomObject } from "./data/buildings";
@@ -31,7 +32,7 @@ interface LabState {
   mapOpen: boolean;
   speech: { key: string; text: string } | null; // 말풍선
   hover: string | null; // 마우스를 올린 것
-  busy: "news" | "draft" | "print" | null; // 시간이 걸리는 일
+  busy: "news" | "draft" | "print" | "research" | null; // 시간이 걸리는 일
   phase: Phase;
   writing: string[]; // 지금 초안을 쓰고 있는 직원 (cards, blog)
   cloud: "off" | "saving" | "saved" | "error"; // Supabase에 저장 상태
@@ -69,6 +70,11 @@ interface LabState {
   receiveNews: (items: NewsItem[], fetchedAt: number) => void;
   toggleBasket: (link: string) => void;
   clearBasket: () => void;
+  projects: TopicProject[];
+  currentProject: string | null;
+  addProject: (p: TopicProject) => void;
+  patchProject: (id: string, patch: Partial<TopicProject>) => void;
+  setCurrentProject: (id: string) => void;
   addDraft: (d: Draft) => void;
   patchDraft: (id: string, patch: Partial<Draft>) => void;
   removeDraft: (id: string) => void;
@@ -100,6 +106,8 @@ const initialData = () => ({
   inbox: NEWS.map((n) => n.link),
   lastFetch: null as number | null,
   basket: [] as string[],
+  projects: [] as TopicProject[],
+  currentProject: null as string | null,
   drafts: SEED_DRAFTS,
   current: SEED_DRAFTS[0]?.id ?? null,
   posts: SEED_POSTS,
@@ -175,6 +183,9 @@ export const useLab = create<LabState>()(
           })),
         toggleBasket: (link) => set((s) => ({ basket: s.basket.includes(link) ? s.basket.filter((l) => l !== link) : [...s.basket, link] })),
         clearBasket: () => set({ basket: [] }),
+        addProject: (p) => set((s) => ({ projects: [p, ...s.projects], currentProject: p.id })),
+        patchProject: (id, patch) => set((s) => ({ projects: s.projects.map((p) => p.id === id ? { ...p, ...patch } : p) })),
+        setCurrentProject: (id) => set({ currentProject: id }),
         addDraft: (d) => set((s) => ({ drafts: [d, ...s.drafts], current: d.id })),
         patchDraft: (id, patch) => patchDraft(id, (d) => ({ ...d, ...patch })),
         removeDraft: (id) =>

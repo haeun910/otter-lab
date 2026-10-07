@@ -1,4 +1,5 @@
 // 화면에서 서버 API를 부르는 곳. 서버가 없거나(미리보기 파일) 키가 없으면 브라우저 안에서 대신 처리해요.
+import type { ResearchSource } from "../research/types";
 import type { Blog, Deck, DraftType, NewsItem } from "../data/demo";
 import { type LLM } from "./pipeline";
 import { generate, type GenerateOptions } from "./generate";
@@ -81,3 +82,13 @@ export async function fetchStatus(): Promise<{ groq: boolean; model: string | nu
 }
 
 export const draftTypeFor = (n: number): DraftType | null => (n === 1 ? "심층" : n >= 2 ? "묶음" : null);
+
+export async function fetchResearch(items: NewsItem[], links: string[]) {
+  links = links.map((s)=>s.trim()).filter(Boolean);
+  if (links.length>4) throw new Error("추가 참고 링크는 4개까지 넣어 주세요.");
+  const res = await fetch("/api/research", { method: "POST", headers: { "content-type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ items, links }) });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new AIError(out.error ?? "추가 자료를 조사하지 못했어요.", res.status);
+  if (!Array.isArray(out.sources) || !Array.isArray(out.failures)) throw new Error("조사 결과를 읽지 못했어요.");
+  return out as { sources: ResearchSource[]; failures: {url:string;error:string}[]; fetchedAt:number };
+}

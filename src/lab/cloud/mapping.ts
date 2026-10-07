@@ -1,10 +1,12 @@
 // 연구소 상태(SavedData) ↔ lab_items 줄. 바뀐 것만 골라 올리는 비교도 여기서 해요.
+import type { TopicProject } from "../research/types";
 import type { Draft, Meeting, NewsItem, Post } from "../data/demo";
 import { normCategory } from "../news/category";
 import type { Kind, Row } from "./rest";
 
 /** 클라우드에 올리는 부분 (담기·보고 있는 초안 같은 화면 상태는 이 기기에만) */
 export interface CloudData {
+  projects?: TopicProject[];
   library: NewsItem[];
   drafts: Draft[];
   posts: Post[];
@@ -16,7 +18,8 @@ export interface CloudData {
   lastFetch: number | null;
 }
 
-const SETTINGS = ["brand", "staff", "schedule", "inbox", "lastFetch"] as const;
+const EMPTY_PROJECTS: TopicProject[] = [];
+const SETTINGS = ["brand", "staff", "schedule", "inbox", "lastFetch", "projects"] as const;
 type Coll = { key: "library" | "drafts" | "posts" | "meetings"; kind: Kind; id: (x: never) => string };
 const COLLS: Coll[] = [
   { key: "library", kind: "news", id: (n: NewsItem) => n.link },
@@ -73,6 +76,7 @@ export function diffRows(prev: CloudData, next: CloudData): { upserts: Row[]; de
 }
 
 export const pickCloud = (s: CloudData): CloudData => ({
+  projects: s.projects ?? EMPTY_PROJECTS,
   library: s.library,
   drafts: s.drafts,
   posts: s.posts,

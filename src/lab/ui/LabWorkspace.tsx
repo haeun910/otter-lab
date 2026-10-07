@@ -55,11 +55,15 @@ export default function LabWorkspace() {
     ...s.drafts.filter((d) => d.engine !== "sample").map((d) => ({ id: d.id, at: d.createdAt, title: `${d.engine === "template" ? "뼈대" : "AI"} 초안 · ${draftLabel(d)}`, room: "cards", panel: "cardEditor" as PanelKind })),
     ...s.meetings.map((m) => ({ id: m.id, at: m.at, title: `회의 기록 · 초안 ${m.drafts.length}개`, room: "meeting", panel: "minutes" as PanelKind })),
   ].sort((a, b) => b.at - a.at).slice(0, 4);
+  const project = s.projects.find((p)=>p.id===s.currentProject) ?? s.projects[0];
+  const stageNames = {topic:"주제 확정 대기",research:"추가 자료 조사·분석",outline:"7장 구성안 확인 대기",generated:"카드 제작 완료"};
+  const projectInfo = project ? project.error ? "확인·재시도 필요" : stageNames[project.stage] : "수신소에서 뉴스로 주제를 제안해 주세요";
   const stages = [
-    { name: "소식 수집", detail: s.busy === "news" ? "루미가 소식을 받고 있어요" : s.lastFetch ? `마지막 수집 ${date(s.lastFetch)}` : "수신소에서 새 소식을 받아 주세요", room: "receiver", panel: "inbox" as PanelKind, active: s.busy === "news" },
-    { name: "모모 · 카드 작성", detail: partStatus("cards"), room: "cards", panel: "cardEditor" as PanelKind, active: s.writing.includes("cards") },
-    { name: "테오 · 블로그 작성", detail: partStatus("blog"), room: "blog", panel: "blogDesk" as PanelKind, active: s.writing.includes("blog") },
-    { name: "소장 검토", detail: `${real.length}개 검토 대기${samples ? ` · 예시 ${samples}개 별도` : ""}`, room: "office", panel: "drafts" as PanelKind, active: false },
+    { name: "소식 수집", detail: s.lastFetch ? `마지막 수집 ${date(s.lastFetch)}` : "수신소에서 새 소식을 받아 주세요", room: "receiver", panel: "inbox" as PanelKind, active: s.busy === "news" },
+    { name: "주제 확정", detail: project?.topic?.title ?? projectInfo, room: "receiver", panel: "inbox" as PanelKind, active: project?.stage==="topic" },
+    { name: "자료 조사·분석", detail: project?.sources.length ? `원문 ${project.sources.length}개 · 확인된 정보 ${project.report?.facts.length ?? 0}개` : projectInfo, room: "receiver", panel: "inbox" as PanelKind, active: project?.stage==="research" },
+    { name: "7장 구성안 확인", detail: project?.outline.length ? "카드마다 설명할 내용을 확인해 주세요" : projectInfo, room: "receiver", panel: "inbox" as PanelKind, active: project?.stage==="outline" },
+    { name: "모모 · 카드 제작", detail: partStatus("cards"), room: "cards", panel: "cardEditor" as PanelKind, active: s.writing.includes("cards") },
     { name: "게시 준비", detail: "콘텐츠 확인 후 내보내기 · 외부 게시는 직접", room: "dock", panel: "mailboat" as PanelKind, active: false },
   ];
   return <div className="workspace" data-view={tab}>
@@ -86,6 +90,7 @@ export default function LabWorkspace() {
           <button className="workboard__review" onClick={() => openLabRoom("office", "drafts")}>초안 검토하기 <span>{real.length}개 →</span></button>
           {!real.length && <p className="workboard__note">{samples ? "예시 초안은 보관함에서 따로 확인할 수 있어요." : "소식을 선택하고 첫 초안을 만들어 보세요."}</p>}
         </section>
+        {s.projects.length>0 && <section className="workboard__section"><div className="workboard__heading"><h2>주제 조사</h2></div><ul className="workboard__activity">{s.projects.slice(0,4).map((p)=><li key={p.id}><button onClick={()=>{s.setCurrentProject(p.id);openLabRoom("receiver","inbox");}}><span><strong>{p.topic?.title ?? p.proposals[0]?.title ?? p.seeds[0]?.title}</strong><small>{p.error ? "확인·재시도 필요" : stageNames[p.stage]}</small></span></button></li>)}</ul></section>}
         <section className="workboard__section"><div className="workboard__heading"><h2>최근 활동</h2><button onClick={() => openLabRoom("meeting", "minutes")}>회의록 ↗</button></div>
           {activities.length ? <ul className="workboard__activity">{activities.map((a) => <li key={a.id}><button onClick={() => { if (s.drafts.some((d) => d.id === a.id)) s.setCurrent(a.id); openLabRoom(a.room, a.panel); }}><span className="workboard__avatar"><OtterFace size={30} /></span><span><strong>{a.title}</strong><time>{date(a.at)}</time></span></button></li>)}</ul> : <p className="workboard__empty">아직 실행 기록이 없어요.<br />새 소식을 받거나 회의를 시작해 보세요.</p>}
         </section>

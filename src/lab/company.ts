@@ -1,11 +1,14 @@
 // 오터랩의 하루: 회의 소집, 결정 뒤 초안 만들기 (안건을 만드는 순수 함수는 agenda.ts)
 export * from "./agenda";
 import { byId } from "./data/buildings";
-import { jobsFrom, kstDay, meetingNotes, statsReport } from "./agenda";
+import { kstDay, meetingNotes, statsReport } from "./agenda";
 import type { Draft, DraftType, NewsItem } from "./data/demo";
 import { fetchNews, writeDraft } from "./gen/client";
 import { useLab } from "./store";
 import { templateDeck } from "./gen/template";
+import { newTopicProject } from "./research/types";
+import { proposeTopics } from "./research/workflow";
+import { remoteLLM } from "./gen/client";
 import type { GenerationTarget } from "./gen/generate";
 import type { DraftRequest } from "./gen/prompt";
 
@@ -46,40 +49,32 @@ export function openAgenda() {
 }
 
 export interface Decision {
-  bundle: string[];
-  deep: string | null;
+  subjects: string[];
   memo: string;
-  considered: number; // 회의에 올라온 후보 수
+  considered: number;
 }
 
-/** 소장 결정: 회의록을 남기고, 다들 자리로 돌아가 초안을 써요 */
+/** Meetings prepare topics; source research and card writing wait for the owner. */
 export async function closeMeeting(dec: Decision | null) {
   const st = useLab.getState();
+  if (st.busy) return;
   const now = Date.now();
   const byLink = new Map(st.library.map((n) => [n.link, n]));
-  const bundleItems = (dec?.bundle ?? []).map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n));
-  const deepItem = dec?.deep ? byLink.get(dec.deep) : undefined;
-  const jobs = jobsFrom(bundleItems, deepItem);
-  const notes = meetingNotes({
-    staffNames: Object.values(st.staff).map((x) => x.name),
-    inboxCount: st.inbox.length,
-    considered: dec?.considered ?? 0,
-    jobs,
-    statsLine: statsReport(st.posts),
-    waiting: st.drafts.filter((d) => d.status === "검토 대기").length,
-    memo: dec?.memo,
-  });
-  const meetingId = `m${now.toString(36)}`;
-  st.addMeeting({ id: meetingId, day: kstDay(now), at: now, notes, drafts: [] });
-  st.closeFocus();
-  st.setPhase("returning");
-  st.travel("overview");
-  st.say(jobs.length ? `회의 끝! ${jobs.map((j) => j.type).join("·")} 초안을 쓰러 각자 자리로 돌아가요.` : "회의 끝! 다들 자리로 돌아가요.");
-  setTimeout(() => {
-    if (useLab.getState().phase === "returning") useLab.getState().setPhase("work");
-  }, 1_500);
-
-  for (const job of jobs) await writeJob(job.type, job.items, meetingId);
+  const news = [...new Set(dec?.subjects ?? [])].slice(0, 2).map((link) => byLink.get(link)).filter((n): n is NewsItem => Boolean(n));
+  const projects = news.map((n) => newTopicProject([n]));
+  for (const p of projects) st.addProject(p);
+  st.addMeeting({ id: "m" + now.toString(36), day: kstDay(now), at: now,
+    notes: meetingNotes({ staffNames: Object.values(st.staff).map((x)=>x.name), inboxCount: st.inbox.length, considered: dec?.considered ?? 0, jobs: [], topics: news, statsLine: statsReport(st.posts), waiting: st.drafts.filter((d)=>d.status === "검토 대기").length, memo: dec?.memo }),
+    drafts: [], topicProjects: projects.map((p)=>p.id) });
+  st.closeFocus(); st.setPhase("work"); st.travel("overview");
+  st.setBusy("research");
+  try {
+    for (const p of projects) {
+      try { const proposals = await proposeTopics(remoteLLM,p.seeds); st.patchProject(p.id,{proposals}); }
+      catch (e) {st.patchProject(p.id,{error:e instanceof Error?e.message:"주제 제안 실패"});}
+    }
+  } finally {st.setBusy(null);}
+  st.say(projects.length ? "주제 후보를 준비했어요. 수신소에서 주제를 확정하면 조사에 들어가요." : "오늘 회의를 마쳤어요.");
 }
 
 /** Parts are saved independently; a blog failure cannot replace the cards. */
@@ -112,7 +107,7 @@ export async function writeJob(type: DraftType, items: NewsItem[], meetingId?: s
         const s = useLab.getState();
         s.setWriting("cards", value.cards.status === "running");
         s.setWriting("blog", value.blogState.status === "running");
-        s.patchDraft(draft.id, { ...(value.deck !== lastDeck ? { deck: value.deck } : {}), ...(value.blog !== lastBlog ? { blog: value.blog } : {}), engine: value.cards.engine ?? "template", generation: { request, cards: value.cards, blog: value.blogState } });
+        s.patchDraft(draft.id, { ...(value.deck !== lastDeck ? { deck: value.deck, type, sources: items.map((n)=>n.link) } : {}), ...(value.blog !== lastBlog ? { blog: value.blog } : {}), engine: value.cards.engine ?? "template", generation: { request, cards: value.cards, blog: value.blogState } });
         lastDeck = value.deck; lastBlog = value.blog;
       },
     });

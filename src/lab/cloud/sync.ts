@@ -72,7 +72,7 @@ export async function startSync(c: Cloud) {
   useLab.getState().setCloud("saved");
 
   const unsub = useLab.subscribe((s, prev) => {
-    if (s.library === prev.library && s.drafts === prev.drafts && s.posts === prev.posts && s.meetings === prev.meetings && s.brand === prev.brand && s.staff === prev.staff && s.schedule === prev.schedule && s.inbox === prev.inbox && s.lastFetch === prev.lastFetch) return;
+    if (s.projects === prev.projects && s.library === prev.library && s.drafts === prev.drafts && s.posts === prev.posts && s.meetings === prev.meetings && s.brand === prev.brand && s.staff === prev.staff && s.schedule === prev.schedule && s.inbox === prev.inbox && s.lastFetch === prev.lastFetch) return;
     clearTimeout(timer);
     timer = setTimeout(flush, 1200);
   });

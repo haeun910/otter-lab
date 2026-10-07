@@ -1,14 +1,15 @@
 // 매일 자동 회의 (GitHub Actions가 매시간 실행해요).
-// 회의 시간이 지났고 오늘 회의를 아직 안 했으면: 소식 받기 → 루미 추천 → 묶음·심층 초안 쓰기 → 회의록 → 텔레그램 알림.
+// 회의 시간이 지났고 오늘 회의를 아직 안 했으면: 소식 받기 → 주제 후보 준비 → 소장 검토 대기 → 회의록 → 알림.
 // 실행: npm run daily   (회의 시간과 상관없이 지금 하려면 FORCE=1 npm run daily)
-import { heldToday, jobsFrom, kstDay, kstMinutes, meetingNotes, parseHM, recommend, statsReport, fmtHM } from "../src/lab/agenda";
+import { heldToday, kstDay, kstMinutes, meetingNotes, parseHM, recommend, statsReport, fmtHM } from "../src/lab/agenda";
 import { fromRows, toRows } from "../src/lab/cloud/mapping";
 import { cleanKey, cleanUrl, selectRows, upsertRows, type Cloud } from "../src/lab/cloud/rest";
 import { BUILDINGS } from "../src/lab/data/buildings";
 import type { Draft, Meeting, NewsItem } from "../src/lab/data/demo";
-import { groqLLM, groqNotes, groqReady, writeWithGroq } from "../src/lab/gen/groq";
+import { groqLLM, groqNotes, groqReady } from "../src/lab/gen/groq";
 import { DEFAULT_BRAND, DEFAULT_PROMPTS, writingOf, type BrandVoice } from "../src/lab/gen/prompt";
-import { templateBlog, templateDeck } from "../src/lab/gen/template";
+import { newTopicProject, type TopicProject } from "../src/lab/research/types";
+import { proposeTopics } from "../src/lab/research/workflow";
 import { FEEDS } from "../src/lab/news/feeds";
 import { CATEGORIES } from "../src/lab/news/category";
 import { refineCategories } from "../src/lab/news/classifyLLM";
@@ -29,7 +30,7 @@ export interface DailyEnv {
 
 type Staff = Record<string, { title: string; name: string; prompt?: string }>;
 
-export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: boolean; reason: string; drafts: Draft[]; message?: string }> {
+export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: boolean; reason: string; drafts: Draft[]; projects?: TopicProject[]; message?: string }> {
   const cloud: Cloud = { url: env.supabaseUrl, key: env.serviceKey, token: async () => "" };
   const data = fromRows(await selectRows(cloud));
   const meetings = data.meetings ?? [];
@@ -64,36 +65,28 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
   // 2. 루미 추천대로 오늘 할 일 정하기
   const drafts = data.drafts ?? [];
   const plan = writingOf(brand);
-  const picks = recommend(library, inbox, drafts, plan.bundleCount, plan.mix);
-  const byLink = new Map(library.map((n) => [n.link, n]));
-  const bundle = picks.bundle.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n));
-  const deep = picks.deep ? byLink.get(picks.deep) : undefined;
-  const jobs = jobsFrom(bundle, deep);
+  const pendingProjects = data.projects ?? [];
+  const pendingLinks = new Set(pendingProjects.flatMap((p)=>p.seeds.map((n)=>n.link)));
+  const picks = recommend(library.filter((n)=>!pendingLinks.has(n.link)), inbox.filter((link)=>!pendingLinks.has(link)), drafts, plan.bundleCount, plan.mix);
+  const byLink = new Map(library.map((n)=>[n.link,n]));
+  const seedLinks = [...new Set([picks.deep,...picks.bundle].filter((link):link is string=>Boolean(link)))].slice(0,2);
+  const seeds = seedLinks.map((link)=>byLink.get(link)).filter((n):n is NewsItem=>Boolean(n));
 
-  // 3. 모모·테오: 초안 쓰기 (Groq가 안 되면 뼈대 초안)
-  const made: Draft[] = [];
+  // Topics wait for approval. No research, card writing, or publishing runs unattended.
+  const projects: TopicProject[] = [];
   const problems: string[] = [];
-  for (const [i, job] of jobs.entries()) {
-    const req = { type: job.type, items: job.items, brand, prompts: { cards: staff.cards?.prompt, blog: staff.blog?.prompt } };
-    let out: Pick<Draft, "deck" | "blog" | "engine" | "generation">;
+  for (const [i,seed] of seeds.entries()) {
+    const p = newTopicProject([seed],now+i);
     if (groqReady()) {
-      try {
-        const w = await writeWithGroq(req);
-        out = { deck: w.deck, blog: w.blog, engine: "groq", generation: { request: req, cards: { status: "complete", engine: "groq" }, blog: w.blogState } };
-        problems.push(...w.notes.map((n) => `${job.type}: ${n}`));
-      } catch (e) {
-        problems.push(`${job.type} 초안은 Groq 연결이 안 돼서 뼈대로 썼어요 (${e instanceof Error ? e.message.slice(0, 80) : "오류"})`);
-        out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template", generation: { request: req, cards: { status: "failed", engine: "template", error: e instanceof Error ? e.message.slice(0, 240) : "Groq 생성 실패" }, blog: { status: "skipped", engine: "template" } } };
-      }
-    } else {
-      out = { deck: templateDeck(job.type, job.items, brand), blog: templateBlog(job.type, job.items, now, brand), engine: "template", generation: { request: req, cards: { status: "failed", engine: "template", error: "GROQ_API_KEY가 없어요" }, blog: { status: "skipped", engine: "template" } } };
-    }
-    made.push({ id: `d${now.toString(36)}${i}`, type: job.type, createdAt: now + i, status: "검토 대기", sources: job.items.map((n) => n.link), ...out });
+      try {p.proposals=await proposeTopics(groqLLM,p.seeds);}
+      catch (e) {p.error=e instanceof Error?e.message:"주제 제안 실패";problems.push(p.error);}
+    } else p.error="GROQ_API_KEY가 없어서 주제를 자동 제안하지 못했어요. 수신소에서 직접 정하거나 다시 시도해 주세요.";
+    projects.push(p);
   }
-  if (jobs.length && !groqReady()) problems.push("GROQ_API_KEY가 없어서 뼈대 초안으로 썼어요");
-  problems.push(...groqNotes);
-  groqNotes.clear();
+  if (projects.length && !groqReady()) problems.push("GROQ_API_KEY가 없어서 주제 제안은 검토 대기로 남겼어요");
+  problems.push(...groqNotes);groqNotes.clear();
   if (news.failed.length) problems.push(`이번에 못 받은 매체: ${news.failed.join(", ")}`);
+  const made: Draft[] = [];
 
   // 4. 회의록
   const waiting = drafts.filter((d) => d.status === "검토 대기").length + made.length;
@@ -107,26 +100,27 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
         staffNames: Object.values(staff).map((s) => s.name),
         inboxCount: inbox.length,
         considered: picks.candidates.length,
-        jobs,
+        jobs: [],
+        topics: seeds,
         statsLine: statsReport(data.posts ?? []),
         waiting,
       }),
       ...problems.map((p) => `참고: ${p}`),
     ],
-    drafts: made.map((d) => d.id),
+    drafts: [],
+    topicProjects: projects.map((p)=>p.id),
   };
-  await upsertRows(cloud, toRows({ drafts: made, meetings: [meeting] }));
+  const latest = fromRows(await selectRows(cloud));
+  await upsertRows(cloud, toRows({ projects: [...projects,...(latest.projects ?? [])], meetings: [meeting] }));
 
   // 5. 소장님께 알림
-  const label = (d: Draft) => d.deck.cards[0]?.title || d.blog.title;
   const title = `[오터랩] ${kstDay(now).slice(5).replace("-", "/")} ${fmtHM(kstMinutes(now))} 회의 끝`;
   const perCat = CATEGORIES.map((c) => `${c} ${news.items.filter((n) => n.category === c).length}`).join(" · ");
   const lines = [
     `받은 소식 ${news.items.length}개 (${perCat})`,
-    made.length ? `루미가 고른 소식으로 초안 ${made.length}개를 썼어요.` : "오늘은 새로 다룰 소식이 없어서 초안을 쓰지 않았어요.",
-    ...made.map((d) => `- ${d.type}: ${label(d)}${d.engine === "template" ? " (뼈대)" : ""}`),
-    ...(bundle.length ? [`묶음 분야: ${bundle.map((n) => n.category).join(", ")}`] : []),
-    `검토 대기 ${waiting}개. 공방에서 확인하고 우편선으로 보내 주세요.`,
+    projects.length ? `뉴스 ${projects.length}개에서 조사할 주제 후보를 준비했어요.` : "오늘은 새로 다룰 주제가 없어요.",
+    ...projects.map((p)=>`- 주제 검토: ${p.proposals[0]?.title ?? p.seeds[0].title}${p.error ? " (제안 확인 필요)" : ""}`),
+    `주제 검토 ${projects.length}개 · 기존 초안 검토 대기 ${waiting}개. 수신소에서 주제를 확정하면 조사에 들어가요.`,
     ...[...notes, ...problems].map((p) => `참고: ${p}`),
   ];
   const message = [title, ...lines, ...(env.labUrl ? [env.labUrl] : [])].join("\n");
@@ -141,7 +135,7 @@ export async function runDaily(env: DailyEnv, now = Date.now()): Promise<{ ran: 
       mention: env.discordMention,
     }).catch((e) => fails.push(String(e?.message ?? e)));
   if (fails.length) throw new Error(`회의는 끝났지만 알림을 못 보냈어요: ${fails.join(" / ")}`);
-  return { ran: true, reason: "회의를 했어요", drafts: made, message };
+  return { ran: true, reason: "회의를 했어요", drafts: made, projects, message };
 }
 
 async function main() {

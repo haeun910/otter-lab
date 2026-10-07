@@ -12,6 +12,7 @@ import { captionWithSources, finalizeDeck, selectHashtags } from "../../gen/edit
 import { DEFAULT_PROMPTS } from "../../gen/prompt";
 import { ACCENTS, FONTS, THEMES, draftImages, saveFiles } from "../../render/cardImage";
 import { draftLabel, pickCurrent, useLab, type SavedData } from "../../store";
+import TopicWorkshop from "./TopicWorkshop";
 import CardPreview from "../CardPreview";
 
 const CATS = ["전체", ...CATEGORIES] as const;
@@ -131,36 +132,8 @@ function NoDraft({ text = "아직 초안이 없어요. 수신소에서 소식을
 // ---------- 담은 소식으로 초안 만들기 ----------
 function BasketFoot() {
   const st = useLab();
-  const [review, setReview] = useState(false);
-  const [target, setTarget] = useState<"cards" | "both">("cards");
-  const [bodyCount, setBodyCount] = useState(writingOf(st.brand).deepCards);
-  const [tone, setTone] = useState("");
-  const [error, setError] = useState("");
   const items = st.basket.map((link) => st.library.find((n) => n.link === link)).filter((n): n is NewsItem => Boolean(n));
-  const type: DraftType = items.length === 1 ? "심층" : "묶음";
-  const total = (type === "심층" ? bodyCount : items.length) + 2;
-  const valid = items.length > 0 && items.length <= BUNDLE_MAX && items.length === st.basket.length;
-  const request: DraftRequest = { type, items, brand: { ...st.brand, ...(type === "심층" ? { deepTone: tone.trim() || st.brand.deepTone } : { tone: tone.trim() || st.brand.tone }), writing: { ...writingOf(st.brand), deepCards: bodyCount } }, prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt } };
-  return <section className="generation-form" aria-label="카드뉴스 생성 요청">
-    <div className="pn__foot"><span className="muted">{items.length ? `${items.length}개 소식 선택 · ${type} 카드뉴스` : "소식 1개는 심층, 2~6개는 묶음 카드뉴스"}</span><div className="row"><button className="btn btn--light" disabled={!items.length || !!st.busy} onClick={() => { st.clearBasket(); setReview(false); }}>선택 비우기</button><button className="btn btn--primary" disabled={!valid || !!st.busy} onClick={() => { setReview(!review); setError(""); }}>{review ? "요청 접기" : "카드뉴스 만들기"}</button></div></div>
-    {review && <div className="generation-form__review">
-      <h3>모모에게 보낼 요청 확인</h3><p className="muted">기본 7장 · 표지 1장 + 설명 5장 + 정리 1장. 묶음은 선택한 소식 수에 맞춰 구성해요.</p><ul>{items.map((n) => <li key={n.link}>{n.title} <small>· {n.source}</small></li>)}</ul>
-      <div className="form2"><label className="field"><span>만들 결과</span><select value={target} onChange={(e) => setTarget(e.target.value as "cards" | "both")}><option value="cards">카드뉴스만 만들기</option><option value="both">카드뉴스 + 블로그</option></select></label>
-      {type === "심층" ? <label className="field"><span>카드 장수 (표지·정리 포함)</span><select value={bodyCount} onChange={(e) => setBodyCount(Number(e.target.value))}>{[3,4,5,6].map((n) => <option key={n} value={n}>{n + 2}장 · 본문 {n}장</option>)}</select></label> : <p className="muted">총 {total}장 · 표지 1 + 소식 {items.length} + 정리 1</p>}
-      <label className="field"><span>말투</span><input value={tone} placeholder={type === "심층" ? st.brand.deepTone : st.brand.tone} onChange={(e) => setTone(e.target.value)} /></label></div>
-      <p className="muted">주제는 위 소식을 바탕으로 작성합니다. 총 {total}장 · {tone.trim() || (type === "심층" ? st.brand.deepTone : st.brand.tone)}. 실패한 생성은 완료로 표시하지 않습니다.</p>
-      {error && <p role="alert">{error}</p>}
-      <button className="btn btn--primary" disabled={!valid || !!st.busy} onClick={async () => {
-        setError("");
-        try {
-          const draft = await writeJob(type, items, undefined, { target, request });
-          if (!draft) return;
-          if (draft.generation?.cards.status === "complete") useLab.getState().clearBasket();
-          const s = useLab.getState(); s.travel("cards"); s.openFocus(BUILDINGS.find((b) => b.id === "cards")!.objects[0]);
-        } catch (e) { setError(e instanceof Error ? e.message : "생성 실패"); }
-      }}>{st.busy === "draft" ? "작성 중…" : target === "cards" ? `확인 · 카드 ${total}장 생성` : `확인 · 카드 ${total}장과 블로그 생성`}</button>
-    </div>}
-  </section>;
+  return <TopicWorkshop selected={items} />;
 }
 
 function GenerationStatus({ draft, part }: { draft: Draft; part: "cards" | "blog" }) {
@@ -847,7 +820,7 @@ export function StatsPanel() {
 // ---------- 연구원 명부 ----------
 const ROLE: Record<string, string> = {
   receiver: "매일 국내외 매체에서 AI·IT 소식을 모아요",
-  cards: "묶음·심층 카드뉴스 문구를 써요",
+  cards: "확정한 주제와 조사 결과로 카드뉴스 문구를 써요",
   blog: "네이버 블로그 글을 써요",
   dock: "검토가 끝난 카드를 인스타그램에 게시해요",
   library: "지난 소식을 정리하고 찾아줘요",
@@ -1117,22 +1090,14 @@ function WritingSettings() {
       <div className="form2">
         <Stepper
           id="w-bundle"
-          label="묶음 카드뉴스 소식 수 (카드는 +2장)"
+          label="회의 추천에 살펴볼 뉴스 수"
           value={w.bundleCount}
           min={2}
           max={6}
           unit="개"
           onChange={(v) => set({ bundleCount: v })}
         />
-        <Stepper
-          id="w-deep"
-          label="심층 카드뉴스 본문 장수 (카드는 +2장)"
-          value={w.deepCards}
-          min={3}
-          max={6}
-          unit="장"
-          onChange={(v) => set({ deepCards: v })}
-        />
+        <div className="field"><span>주제 카드뉴스 장수</span><strong>7장 · 표지 1 + 설명 5 + 정리 1</strong></div>
         <div className="field">
           <span>묶음 블로그 길이</span>
           <Seg
@@ -1160,8 +1125,8 @@ function WritingSettings() {
         <input id="w-photos" type="checkbox" checked={w.photos} onChange={(e) => set({ photos: e.target.checked })} />
         <span>블로그 소제목마다 사진 자리와 사진 설명(대체 텍스트)을 넣어 줘요</span>
       </label>
-      <h3 className="pn__h">묶음 카드뉴스 분야 비율</h3>
-      <p className="muted">루미가 회의 때 이 비율대로 소식을 골라 와요. 0이면 그 분야는 빼요. 국내·해외 매체는 반반쯤 섞어요.</p>
+      <h3 className="pn__h">회의 추천 뉴스의 분야 비율</h3>
+      <p className="muted">루미가 회의 때 살펴볼 소식을 이 비율로 골라요. 그중에서 조사할 주제를 정하고, 카드뉴스 한 편에는 주제 하나만 담아요. 0이면 그 분야는 빼요.</p>
       <div className="mix">
         {CATEGORIES.map((c) => (
           <div key={c} className="mix__row" title={CATEGORY_INFO[c].desc}>
@@ -1172,7 +1137,7 @@ function WritingSettings() {
         ))}
       </div>
       <p className="muted">
-        지금 설정이면 묶음 {w.bundleCount}개를{" "}
+        지금 설정이면 추천 뉴스 {w.bundleCount}개를{" "}
         {CATEGORIES.map((c) => [c, quotas(w.bundleCount, w.mix)[c]] as const)
           .filter(([, n]) => n > 0)
           .map(([c, n]) => `${c} ${n}`)
@@ -1205,15 +1170,15 @@ export function BrandPanel() {
           <input id="b-handle" value={brand.handle} onChange={(e) => set("handle", e.target.value)} />
         </label>
         <label className="field">
-          <span>묶음 카드 시리즈 이름</span>
+          <span>카드 시리즈 이름</span>
           <input id="b-series" value={brand.series} onChange={(e) => set("series", e.target.value)} />
         </label>
         <label className="field">
-          <span>묶음 말투</span>
+          <span>기본 말투</span>
           <input id="b-tone" value={brand.tone} onChange={(e) => set("tone", e.target.value)} />
         </label>
         <label className="field">
-          <span>심층 말투</span>
+          <span>주제 설명 말투</span>
           <input id="b-deep" value={brand.deepTone} onChange={(e) => set("deepTone", e.target.value)} />
         </label>
       </div>
@@ -1233,7 +1198,7 @@ export function BrandPanel() {
         </div>
         <div>
           <dt>자동 회의</dt>
-          <dd>매일 회의 시간에 묶음 1개와 심층 1개</dd>
+          <dd>매일 회의 시간에 주제 후보를 준비하고, 소장이 주제·구성안을 확인한 뒤 제작</dd>
           <dd className="muted">GitHub Actions가 소장님 대신 회의해요 (SETUP.md)</dd>
         </div>
         <div>

@@ -26,7 +26,7 @@ export function normalizeDeck(raw: unknown, fallback: Deck): Deck {
       const kind = c.kind === "cover" || c.kind === "body" || c.kind === "outro" ? c.kind : i === 0 ? "cover" : i === all.length - 1 ? "outro" : "body";
       const tag = str(c.tag);
       const sections = list(c.sections).map((v) => (v ?? {}) as Record<string, unknown>).map((v) => ({ heading: str(v.heading), body: str(v.body).replace(/\\n/g, "\n") })).filter((v) => v.heading && v.body).slice(0, 2);
-      return { kind, title: str(c.title), body: str(c.body).replace(/\\n/g, "\n"), ...(kind === "body" && tag ? { tag } : {}), ...(sections.length ? { sections } : {}), ...(isCardTemplate(c.template) ? { template: c.template } : {}) };
+      return { kind, title: str(c.title), body: str(c.body).replace(/\\n/g, "\n"), ...(kind === "body" && tag ? { tag } : {}), ...(sections.length ? { sections } : {}), ...(isCardTemplate(c.template) ? { template: c.template } : {}), ...(Array.isArray(c.factIds) ? { factIds: c.factIds.filter((v): v is string => typeof v === "string") } : {}) };
     })
     .filter((c) => c.title || c.body);
   const ok = cards.length >= 3 && cards[0].kind === "cover";

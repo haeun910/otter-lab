@@ -87,7 +87,7 @@ export function recommend(library: NewsItem[], inbox: string[], drafts: Draft[],
 
   const picked: NewsItem[] = [];
   const perSource = new Map<string, number>();
-  const region = { 국내: 0, 해외: 0 };
+  const region = { 국내: 0, 해외: 0, 미확인: 0 };
   const take = (list: NewsItem[]) => {
     const ok = list.filter((n) => n.link !== deepItem?.link && !picked.includes(n) && (perSource.get(n.source) ?? 0) < 2);
     if (!ok.length) return false;
@@ -155,17 +155,18 @@ export interface NotesInput {
   statsLine: string;
   waiting: number;
   memo?: string;
+  topics?: { title: string }[];
   auto?: boolean; // 소장 없이 자동으로 한 회의
 }
 
 export function meetingNotes(n: NotesInput): string[] {
-  const chosen = n.jobs.reduce((a, j) => a + j.items.length, 0);
+  const chosen = n.topics?.length ?? n.jobs.reduce((a, j) => a + j.items.length, 0);
   return [
     `참석: ${n.auto ? "" : "소장, "}${n.staffNames.join(", ")}${n.auto ? " (소장 부재, 자동 회의)" : ""}`,
     `소식 보고: 수신 소식 ${n.inboxCount}개 중 후보 ${n.considered}개를 검토해서 ${chosen}개 선택`,
     `성과 보고: ${n.statsLine}`,
     `게시 대기: ${n.waiting}개`,
-    ...(n.jobs.length ? n.jobs.map((j) => `결정: ${j.type} 초안 (${j.items.map((x) => x.title).join(" / ")})`) : ["결정: 오늘은 새 초안 없음"]),
+    ...(n.topics ? n.topics.length ? n.topics.map((t) => `결정: 주제 제안을 준비할 뉴스 (${t.title})`) : ["결정: 오늘은 새 주제 없음"] : n.jobs.length ? n.jobs.map((j) => `결정: ${j.type} 초안 (${j.items.map((x) => x.title).join(" / ")})`) : ["결정: 오늘은 새 초안 없음"]),
     ...(n.memo?.trim() ? [`소장 메모: ${n.memo.trim()}`] : []),
   ];
 }

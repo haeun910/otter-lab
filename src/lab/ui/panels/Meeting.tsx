@@ -1,4 +1,5 @@
 "use client";
+import { BUILDINGS } from "../../data/buildings";
 import { useState } from "react";
 import { writingOf } from "../../gen/prompt";
 import { closeMeeting, fmtHM, heldToday, parseHM, recommend, startMeeting, statsReport } from "../../company";
@@ -6,7 +7,6 @@ import { draftLabel, useLab } from "../../store";
 
 const fmtDate = (t: number) =>
   new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" }).format(t);
-const BUNDLE_MAX = 6;
 
 function Speaker({ id, topic }: { id: string; topic: string }) {
   const who = useLab((s) => s.staff[id]);
@@ -36,7 +36,7 @@ function MeetingIdle() {
     <div className="pn">
       <p>
         매일 <strong>{fmtHM(parseHM(meetingAt))}</strong>이 되면 연구원들이 이 탁자에 모여요. 루미가 오늘 소식에서 추천을 골라 오고, 나래가 성과를, 바다가 게시
-        대기 초안을 보고해요. 소장님이 정하면 모모와 테오가 초안을 써요.
+        대기 초안을 보고해요. 소장님이 출발 뉴스를 고르면 주제 후보를 준비해요. 주제와 구성안 확인 후 카드 제작이 시작돼요.
       </p>
       {held && <p className="muted">오늘 회의는 이미 했어요. 회의록에서 내용을 볼 수 있어요.</p>}
       <footer className="pn__foot">
@@ -67,13 +67,11 @@ function Agenda() {
     const w = writingOf(brand);
     return recommend(library, inbox, drafts, w.bundleCount, w.mix);
   });
-  const [bundle, setBundle] = useState<string[]>(picks.bundle);
-  const [deep, setDeep] = useState<string | null>(picks.deep);
+  const [subjects, setSubjects] = useState<string[]>([picks.deep, picks.bundle[0]].filter((v): v is string => Boolean(v)).slice(0,2));
   const [memo, setMemo] = useState("");
   const waiting = drafts.filter((d) => d.status === "검토 대기");
-  const toggle = (l: string) => setBundle((b) => (b.includes(l) ? b.filter((x) => x !== l) : [...b, l]));
-  const okBundle = bundle.length >= 2 && bundle.length <= BUNDLE_MAX;
-  const plan = [okBundle ? `묶음 초안 (소식 ${bundle.length}개)` : null, deep ? "심층 초안 1개" : null].filter(Boolean);
+  const toggle = (link: string) => setSubjects((current)=>current.includes(link)?current.filter((x)=>x!==link):current.length<2?[...current,link]:current);
+  const plan = subjects.length ? [`주제 후보를 준비할 뉴스 ${subjects.length}개`] : [];
 
   return (
     <div className="pn agenda">
@@ -81,30 +79,16 @@ function Agenda() {
         <Speaker id="receiver" topic="오늘 들어온 소식" />
         <p className="muted">
           소식 {inbox.length}개 중 아직 다루지 않은 후보 {picks.candidates.length}개를 분야별로 골라 왔어요. ★는 루미 추천이에요 (분야 비율은 소장 책상에서
-          바꿔요). 묶음은 2~{BUNDLE_MAX}개, 심층은 1개를 골라 주세요.
+          바꿔요). 출발 뉴스는 최대 2개를 고르고, 각 뉴스에서 하나의 주제를 정해요.
         </p>
         {picks.candidates.length ? (
           <ul className="news news--compact agenda__news">
             {picks.candidates.map((n) => {
-              const inB = bundle.includes(n.link);
+              const inB = subjects.includes(n.link);
               const rec = picks.bundle.includes(n.link) || picks.deep === n.link;
               return (
-                <li key={n.link} className={inB || deep === n.link ? "news--on" : ""}>
-                  <div className="agenda__pick">
-                    <label>
-                      <input type="checkbox" checked={inB} onChange={() => toggle(n.link)} disabled={deep === n.link} />
-                      묶음
-                    </label>
-                    <label>
-                      <input
-                        type="radio"
-                        name="deep"
-                        checked={deep === n.link}
-                        onChange={() => (setDeep(n.link), setBundle((b) => b.filter((x) => x !== n.link)))}
-                      />
-                      심층
-                    </label>
-                  </div>
+                <li key={n.link} className={inB ? "news--on" : ""}>
+                  <div className="agenda__pick"><label><input type="checkbox" checked={inB} onChange={()=>toggle(n.link)} disabled={!inB && subjects.length>=2}/>주제 출발 뉴스</label></div>
                   <div className="news__main">
                     <p className="news__meta">
                       {rec && (
@@ -125,11 +109,6 @@ function Agenda() {
           </ul>
         ) : (
           <p className="empty">새로 다룰 소식이 없어요. 수신소에서 새 소식을 받아 오면 후보가 생겨요.</p>
-        )}
-        {deep && (
-          <button className="link-btn" onClick={() => setDeep(null)}>
-            심층은 오늘 쉬기
-          </button>
         )}
       </section>
 
@@ -157,9 +136,7 @@ function Agenda() {
         <h3 className="agenda__who">
           <span>소장</span>결정
         </h3>
-        <p>{plan.length ? `${plan.join(", ")}을 만들어요.` : "오늘은 새 초안을 만들지 않아요."}</p>
-        {bundle.length === 1 && <p className="muted">묶음은 소식이 2개 이상이어야 해요. 하나만 다루려면 심층으로 골라 주세요.</p>}
-        {bundle.length > BUNDLE_MAX && <p className="muted">묶음은 {BUNDLE_MAX}개까지예요.</p>}
+        <p>{plan.length ? `${plan.join(", ")}를 준비해요.` : "오늘은 새 주제를 제안하지 않아요."}</p>
         <label className="field">
           <span>회의록에 남길 메모 (선택)</span>
           <input id="meeting-memo" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="예: 이번 주는 에이전트 소식 위주로" />
@@ -167,15 +144,15 @@ function Agenda() {
       </section>
 
       <footer className="pn__foot">
-        <button className="btn btn--light" onClick={() => closeMeeting({ bundle: [], deep: null, memo, considered: picks.candidates.length })}>
-          초안 없이 마치기
+        <button className="btn btn--light" onClick={() => closeMeeting({ subjects: [], memo, considered: picks.candidates.length })}>
+          주제 제안 없이 마치기
         </button>
         <button
           className="btn btn--primary"
-          disabled={!plan.length || bundle.length > BUNDLE_MAX}
-          onClick={() => closeMeeting({ bundle: okBundle ? bundle : [], deep, memo, considered: picks.candidates.length })}
+          disabled={!plan.length}
+          onClick={() => closeMeeting({ subjects, memo, considered: picks.candidates.length })}
         >
-          이대로 진행
+          선택한 뉴스로 주제 후보 준비
         </button>
       </footer>
     </div>
@@ -214,6 +191,7 @@ export function MinutesPanel() {
                   <li key={i}>{n}</li>
                 ))}
               </ul>
+              {m.topicProjects?.map((id)=><button key={id} className="btn btn--light" onClick={()=>{const s=useLab.getState();s.setCurrentProject(id);s.travel("receiver");s.openFocus(BUILDINGS.find((b)=>b.id==="receiver")!.objects[0]);}}>주제 검토 열기</button>)}
               {m.drafts.length > 0 && (
                 <div className="row">
                   {m.drafts.map((id) => {
