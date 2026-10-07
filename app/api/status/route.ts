@@ -1,5 +1,7 @@
 import { configProblem, connectionInfo, cloudConfigured } from "@/src/lab/cloud/config";
 import { groqModel, groqReady } from "@/src/lab/gen/groq";
+import { imageReady, imageModel, imageQuality } from "@/src/lab/gen/imageServer";
+import { CARD_PRODUCTION } from "@/src/lab/gen/production";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,7 @@ export async function GET() {
   return Response.json({
     groq: groqReady(),
     model: groqReady() ? groqModel() : null,
+    images: {ready:imageReady(),model:imageReady()?imageModel():null,quality:imageQuality(),size:CARD_PRODUCTION.imageSize},
     supabase: cloud ? { ...connectionInfo(), problem: configProblem() } : "이 배포에는 Supabase 주소·키가 없어요 (브라우저에만 저장하는 모드)",
   });
 }

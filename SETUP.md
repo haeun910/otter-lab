@@ -110,6 +110,9 @@ Groq는 모델을 종종 은퇴시켜요 (2026년 8월에 Llama 3.3 70B가 없�
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | ② publishable 키 (예전 프로젝트면 이름을 `NEXT_PUBLIC_SUPABASE_ANON_KEY`로 하고 anon 키) |
    | `GROQ_API_KEY` | Groq 키 |
    | `GROQ_MODEL` | (선택) 모델 이름. 비워 두면 `openai/gpt-oss-120b`. 넣을 때는 `openai/`, `qwen/` 같은 앞부분까지 통째로 |
+   | `OPENAI_API_KEY` | 카드 전체 이미지 생성용 서버 키 (문구·도식·일러스트를 함께 생성) |
+   | `OPENAI_IMAGE_MODEL` | (선택) 기본 `gpt-image-1` |
+   | `OPENAI_IMAGE_QUALITY` | (선택) `low`, `medium`, `high` 중 하나. 기본 `high` |
 
 3. **Deploy**. 끝나면 `https://otter-lab-xxxx.vercel.app` 같은 주소가 나와요. 이 주소를 Supabase의 Site URL·Redirect URLs에 넣어 주세요 (3-5단계).
 4. Vercel은 저장소의 **기본 브랜치**를 실제 서비스로 올려요. 5단계 맨 앞의 "기본 브랜치 바꾸기"를 먼저 하거나, Vercel **Settings → Git → Production Branch**를 `main`으로 바꾼 뒤 **Deployments → ⋯ → Redeploy** 해 주세요.
@@ -175,5 +178,9 @@ GitHub는 저장소의 **기본 브랜치**에 있는 워크플로만 Actions �
 - **"이 계정은 연구소의 주인으로 등록돼 있지 않아요"** → `schema.sql` 마지막 줄 이메일과 로그인한 이메일이 같은지 확인해 주세요. SQL Editor에서 `select * from lab_owner;`로 볼 수 있어요.
 - **로그인 메일이 안 와요** → Supabase 기본 메일은 한 시간에 몇 통으로 제한돼 있어요. 스팸함을 보고, 잠시 뒤 다시 해 주세요.
 - **자동 회의가 안 돌아요** → Actions 탭의 실행 기록에서 빨간 줄을 눌러 보면 이유가 한국어로 나와요 (예: `SUPABASE_SECRET_KEY 환경변수가 없어요`).
-- **주제 제안·분석·카드 제작이 실패해요** → `GROQ_API_KEY`와 사용량을 확인하고 해당 단계만 재시도하세요. 이미 읽은 자료와 완료한 분석은 보존합니다.
+- **주제 제안·분석·카드 제작이 실패해요** → `GROQ_API_KEY`와 사용량을 확인하고 해당 단계만 재시도하세요. 이미 읽은 자료와 검증을 마친 구간별 분석은 보존합니다. 카드 작성 후 내용 검수 호출이 추가되며, 보완이 필요한 경우 해당 카드 수정과 재검수를 각각 한 번 진행합니다. 검수 실패는 이전 초안을 덮어쓰지 않습니다.
 - **조사 자료가 부족해요** → 읽을 수 있는 서로 다른 HTML·텍스트 자료 2개 이상이 필요합니다. 수신소에서 공식 문서나 관련 기사 링크를 추가하세요. 조사 프로젝트는 기존 `lab_data`의 `setting/projects`에 저장되므로 새 테이블은 필요하지 않습니다.
+
+## 승인한 카드 이미지 제작 방식
+
+코드·프롬프트·설정은 [카드뉴스 제작 규칙](docs/card-production.md)에 등록했습니다. 배포 서버의 `OPENAI_API_KEY`를 추가하고 재배포하면 인쇄기에서 전체 카드 이미지를 생성할 수 있습니다. Groq 연결은 문구 작성과 검수에 사용하고, 이 이미지 키는 별도로 필요합니다. 이미지 생성에는 API 요금이 발생하며 소장이 버튼을 눌렀을 때만 요청합니다. 생성한 PNG 원본은 해당 브라우저에 보관하므로 파일로 내려받아 보관하세요.

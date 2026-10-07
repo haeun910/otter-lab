@@ -18,6 +18,8 @@ import {
   type Msg,
 } from "./prompt";
 import { templateBlog, templateDeck } from "./template";
+import { CardQualityError, inspectCards, reviewAndRepair } from "./quality";
+import { validateVisualCopy } from "./production";
 
 /** AI 한 번 부르기: 답은 JSON으로 */
 export type LLM = (messages: Msg[], opts?: { maxTokens?: number }) => Promise<unknown>;
@@ -27,27 +29,39 @@ const str = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\\n/g, "\
 /** 긴 글로 나눠 쓰는 기준 (이보다 길면 소제목별로) */
 export const SPLIT_FROM = 2000;
 
-export async function writeDeck(llm: LLM, r: DraftRequest): Promise<Deck> {
-  if (r.research) validateApprovedResearch(r.research);
-  const raw = await llm(cardsMessages(r), { maxTokens: 4000 });
+function validateWrittenDeck(raw: unknown, r:DraftRequest, prior?:Deck) {
   const cards = (raw as { cards?: unknown[] } | null)?.cards;
-  const expected = templateDeck(r.type, r.items, r.brand).cards.length;
+  const expected = prior?.cards.length ?? templateDeck(r.type, r.items, r.brand).cards.length;
   if (!Array.isArray(cards) || cards.length !== expected) throw new Error(`카드 장수가 요청과 달라요 (요청 ${expected}장). 다시 생성해 주세요.`);
   for (const [i, value] of cards.entries()) {
-    const c = value as { kind?: string; title?: string; body?: string } | null;
+    const c = value as { kind?: string; title?: string; body?: string; sections?: unknown } | null;
     const kind = i === 0 ? "cover" : i === cards.length - 1 ? "outro" : "body";
     if (c?.kind !== kind || typeof c.title !== "string" || !c.title.trim() || typeof c.body !== "string" || !c.body.trim()) throw new Error(`${i + 1}번째 카드의 구성이나 내용이 비어 있어요. 다시 생성해 주세요.`);
+    if (c.sections !== undefined && (!Array.isArray(c.sections) || c.sections.length > 2 || c.sections.some((s) => !s || typeof s.heading !== "string" || !s.heading.trim() || typeof s.body !== "string" || !s.body.trim()))) throw new Error(`${i + 1}번째 카드의 추가 설명을 읽지 못했어요. 다시 생성해 주세요.`);
+    if (r.cardFormatVersion === 1) validateVisualCopy(value as Deck["cards"][number],i+1);
   }
   if (r.research) {
     for (const [i, value] of cards.entries()) {
       const card = value as { title?: string; factIds?: string[] };
-      const planned = r.research.outline[i];
-      if (card.title?.trim() !== planned.title || !Array.isArray(card.factIds) || [...new Set(card.factIds)].sort().join("|") !== [...planned.factIds].sort().join("|")) throw new Error((i + 1) + "번째 카드가 확정 구성안과 달라요. 다시 생성해 주세요.");
+      const planned = prior?.cards[i] ?? r.research.outline[i];
+      if (card.title?.trim() !== planned.title || !Array.isArray(card.factIds) || [...new Set(card.factIds)].sort().join("|") !== [...(planned.factIds ?? [])].sort().join("|")) throw new Error((i + 1) + "번째 카드가 확정 구성안과 달라요. 다시 생성해 주세요.");
     }
   }
   const deck = raw as Deck;
   if (typeof deck.caption !== "string" || !deck.caption.trim() || !Array.isArray(deck.hashtags) || !deck.hashtags.some((t) => typeof t === "string" && t.trim())) throw new Error("AI가 캡션이나 해시태그를 빠뜨렸어요. 다시 생성해 주세요.");
-  return finalizeDeck(normalizeDeck(raw, templateDeck(r.type, r.items, r.brand)), r.research ? researchNews(r.research, r.items[0].category) : r.items);
+}
+
+export async function writeDeck(llm: LLM, r: DraftRequest): Promise<Deck> {
+  if (r.research) validateApprovedResearch(r.research);
+  const raw = await llm(cardsMessages(r), { maxTokens: r.cardFormatVersion === 1 ? 5500 : 4000 });
+  validateWrittenDeck(raw,r);
+  let deck=normalizeDeck(raw,templateDeck(r.type,r.items,r.brand));
+  if (r.research && r.qualityVersion===1) deck=await reviewAndRepair(llm,r,deck,(value)=>validateWrittenDeck(value,r));
+  else if (r.research) {
+    const issues=inspectCards(deck.cards);
+    if (issues.length) throw new CardQualityError({status:"needs_revision",issues,reviewedAt:Date.now(),repaired:[]});
+  }
+  return finalizeDeck(deck, r.research ? researchNews(r.research, r.items[0].category) : r.items);
 }
 
 export interface BlogResult {
@@ -105,10 +119,14 @@ export async function writeAll(llm: LLM, r: DraftRequest, onProgress?: (step: st
 }
 
 export async function rewriteDeck(llm: LLM, r: DraftRequest, deck: Deck, instruction: string): Promise<Deck> {
-  const out = normalizeDeck(await llm(rewriteDeckMessages(r, deck, instruction), { maxTokens: 4000 }), deck);
+  const raw = await llm(rewriteDeckMessages(r, deck, instruction), { maxTokens: 5500 });
+  if (r.cardFormatVersion === 1) validateWrittenDeck(raw,r,deck);
+  const out = normalizeDeck(raw, deck);
   // 장수가 달라졌으면 원래 모양을 지켜요
-  const next = out.cards.length === deck.cards.length ? out : { ...out, cards: deck.cards };
+  let next = out.cards.length === deck.cards.length ? out : { ...out, cards: deck.cards };
+  next.cards = next.cards.map((card,i)=>({...card,...(deck.cards[i]?.image?{image:deck.cards[i].image}:{})}));
   if (r.research) next.cards = next.cards.map((card,i)=>({ ...card, factIds: deck.cards[i].factIds }));
+  if (r.research && r.qualityVersion===1) next=await reviewAndRepair(llm,r,next,(value)=>validateWrittenDeck(value,r,deck));
   return finalizeDeck(next, r.research ? researchNews(r.research,r.items[0].category) : r.items);
 }
 

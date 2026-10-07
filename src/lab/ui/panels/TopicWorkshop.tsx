@@ -49,7 +49,7 @@ export default function TopicWorkshop({ selected }: { selected: NewsItem[] }) {
         useLab.getState().patchProject(project.id,{sources,failures:collected.failures,report:undefined,outline:[]});
       }
       if (!report) {
-        report = await analyzeSources(remoteLLM,topic,sources);
+        report = await analyzeSources(remoteLLM,topic,sources,(done,total)=>setPending(`원문 구간 분석 ${done}/${total} · 사실과 설명 근거를 모으고 있어요`),again?undefined:project.analysis,(analysis)=>useLab.getState().patchProject(project.id,{analysis}));
         useLab.getState().patchProject(project.id,{report});
       }
       const outline = await planCards(remoteLLM,topic,report);
@@ -58,13 +58,13 @@ export default function TopicWorkshop({ selected }: { selected: NewsItem[] }) {
   };
   const makeCards = async () => {
     if (!p?.topic || !p.report || disabled) return;
-    setPending("확정 구성안으로 카드 7장을 만들고 있어요");
+    setPending("확정 구성안으로 카드 7장을 쓰고, 내용 검수와 필요한 보완을 진행하고 있어요");
     try {
       const research:ApprovedResearch = structuredClone({topic:p.topic,sources:p.sources,report:p.report,outline:p.outline,approvedAt:Date.now()});
       validateApprovedResearch(research);
       const items = researchNews(research,p.seeds[0].category);
       const state = useLab.getState();
-      const request:DraftRequest = {type:"심층",items,brand:{...state.brand,writing:{...state.brand.writing,deepCards:5}},prompts:{cards:state.staff.cards?.prompt,blog:state.staff.blog?.prompt},research};
+      const request:DraftRequest = {type:"심층",items,brand:{...state.brand,writing:{...state.brand.writing,deepCards:5}},prompts:{cards:state.staff.cards?.prompt,blog:state.staff.blog?.prompt},research,qualityVersion:1,cardFormatVersion:1};
       const previous = state.drafts.find((d)=>d.id===p.draftId && d.status!=="게시함");
       const draft = await writeJob("심층",items,undefined,{target:"cards",request,...(previous?{draftId:previous.id}:{})});
       if (!draft) throw new Error("카드 제작을 시작하지 못했어요.");
@@ -106,7 +106,7 @@ export default function TopicWorkshop({ selected }: { selected: NewsItem[] }) {
       </fieldset>
       {p.sources.length>0 && <section><h4>읽은 자료 {p.sources.length}개</h4>{p.sources.map((s)=><details key={s.id}><summary>{s.id} · {s.title}</summary><a href={s.url} target="_blank" rel="noreferrer">{s.publisher} · 원문 보기</a><p>{s.text.slice(0,700)}</p></details>)}</section>}
       {p.failures.length>0 && <details><summary>읽지 못한 자료 {p.failures.length}개</summary>{p.failures.map((f)=><p key={f.url}>{f.url}<br/>{f.error}</p>)}</details>}
-      {p.report && <section><h4>조사·분석 결과</h4><p>{p.report.summary}</p>{p.report.facts.map((f)=><details key={f.id}><summary>{f.id} · {f.text}</summary>{f.evidence.map((e,i)=><blockquote key={i}>{e.quote}<br/><small>{e.sourceId} · {p.sources.find((s)=>s.id===e.sourceId)?.title}</small></blockquote>)}</details>)}{p.report.gaps.length>0 && <><h4>추가 확인할 내용</h4><ul>{p.report.gaps.map((gap,i)=><li key={i}>{gap}</li>)}</ul></>}</section>}
+      {p.report && <section><h4>조사·분석 결과</h4><p>{p.report.summary}</p>{p.report.facts.map((f)=><details key={f.id}><summary>{f.id} · {f.text}</summary>{f.detail && <p>{f.detail}</p>}{f.evidence.map((e,i)=><blockquote key={i}>{e.quote}<br/><small>{e.sourceId} · {p.sources.find((s)=>s.id===e.sourceId)?.title}</small></blockquote>)}</details>)}{p.report.gaps.length>0 && <><h4>추가 확인할 내용</h4><ul>{p.report.gaps.map((gap,i)=><li key={i}>{gap}</li>)}</ul></>}</section>}
       {p.outline.length>0 && <fieldset disabled={disabled}><legend>7장 구성안 · 제작 전에 확인해 주세요</legend>{p.outline.map((card,i)=><div className="topic-outline-card" key={i}>
         <strong>{i+1}장 · {card.kind==="cover"?"메인 수달 표지":card.kind==="outro"?"핵심 정리":"설명"}</strong>
         <label className="field"><span>{i+1}장 제목</span><input maxLength={36} value={card.title} onChange={(e)=>patch({outline:p.outline.map((c,j)=>i===j?{...c,title:e.target.value}:c),stage:"outline",error:undefined})}/></label>

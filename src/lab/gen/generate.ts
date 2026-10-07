@@ -2,6 +2,7 @@ import type { Blog, Deck, GenerationPart } from "../data/demo";
 import { writeBlog, writeDeck, type LLM } from "./pipeline";
 import type { DraftRequest } from "./prompt";
 import { templateDeck } from "./template";
+import { CardQualityError } from "./quality";
 
 export type GenerationTarget = "cards" | "both" | "blog";
 export interface Generated {
@@ -28,12 +29,12 @@ export async function generate(llm: LLM, r: DraftRequest, options: GenerateOptio
   };
   const update = (patch: Partial<Generated>) => { value = { ...value, ...patch }; options.onUpdate?.(value); };
   if (target !== "blog") {
-    update({ cards: { ...value.cards, status: "running", error: undefined } });
+    update({ cards: { ...value.cards, status: "running", error: undefined, review: undefined } });
     try {
       const deck = await writeDeck(llm, r);
-      update({ deck, cards: { status: "complete", engine: "groq" } });
+      update({ deck, cards: { status: "complete", engine: "groq", ...(deck.quality?{review:deck.quality}:{}) } });
     } catch (e) {
-      update({ cards: { ...value.cards, status: "failed", error: e instanceof Error ? e.message.slice(0, 240) : "카드 생성 실패" } });
+      update({ cards: { ...value.cards, status: "failed", error: e instanceof Error ? e.message.slice(0, 240) : "카드 생성 실패", ...(e instanceof CardQualityError?{review:e.review}:{}) } });
     }
   }
   if (target !== "cards") {

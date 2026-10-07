@@ -15,6 +15,8 @@ import cautionArt from "../assets/card-caution.webp";
 import dialogueArt from "../assets/card-dialogue.webp";
 import { chooseCardTemplate, type CardTemplate } from "../data/cardTemplates";
 import { CARD_HANDLE } from "../gen/editorial";
+import { productionOf } from "../gen/production";
+import { generatedImageFiles } from "./generatedCards";
 import { otterSvgMarkup } from "../ui/otterSvg";
 
 export const CARD_W = 1080;
@@ -217,37 +219,41 @@ function pastel(ctx: Ctx, card: Card, look: CardLook, H: number) {
   let y = lines(ctx, title.ls, X, 153, title.size, 1.22) + 32;
   const start = y;
   const blocks = [{ heading: "", body: card.body }, ...(card.sections ?? [])];
-  let chosen = 0;
-  // Reserve the lower-right corner for illustration; shrink text only within readable bounds.
-  for (let size = 40; size >= 32; size -= 2) {
-    y = start; ctx.font = `400 ${size}px ${BODY_SANS}`;
-    for (const block of blocks) {
-      if (block.heading) y += 54;
-      const w = block.heading || y > 470 ? 520 : width;
-      const ls = wrap(ctx, block.body, w);
-      // A wide paragraph crossing into the illustration area is measured narrowly instead.
-      const actual = !block.heading && y + ls.length * size * 1.5 > 570 ? wrap(ctx, block.body, 520) : ls;
-      y += actual.length * size * 1.5 + 28;
+  const layouts = [{size:425,x:603,y:550,narrow:520},{size:280,x:748,y:695,narrow:640},{size:210,x:818,y:765,narrow:720}];
+  const length = blocks.reduce((sum, block) => sum + block.body.length, 0);
+  const scenes = card.kind === "body" && length > 210 ? [layouts[2], layouts[1], layouts[0]]
+    : card.kind === "body" && length > 120 ? [layouts[1], layouts[2], layouts[0]] : layouts;
+  let chosen = 0, layout = layouts[0];
+  const paragraph = (body:string,heading:string,at:number,size:number,scene:typeof layout) => {
+    const full=wrap(ctx,body,width);
+    return heading || at+full.length*size*1.5>scene.y ? wrap(ctx,body,scene.narrow) : full;
+  };
+  // Try smaller illustrations before reducing the type size on information-dense cards.
+  for (let size=40;size>=32&&!chosen;size-=2) {
+    for (const scene of scenes) {
+      y=start;ctx.font=`400 ${size}px ${BODY_SANS}`;
+      for (const block of blocks) {
+        if (block.heading) y+=54;
+        y+=paragraph(block.body,block.heading,y,size,scene).length*size*1.5+28;
+      }
+      if (y<=972) {chosen=size;layout=scene;break;}
     }
-    if (y <= 972) { chosen = size; break; }
   }
   if (!chosen) throw new Error(`${look.page}번째 카드의 내용이 길어요. 제목·본문을 줄이거나 카드를 나눠 주세요.`);
   y = start;
   for (const block of blocks) {
     if (block.heading) {
       ctx.font = `700 32px ${BODY_SANS}`; ctx.fillStyle = accent;
-      const heading = wrap(ctx, block.heading, 520);
+      const heading = wrap(ctx, block.heading, layout.narrow);
       if (heading.length > 1) throw new Error(`${look.page}번째 카드의 소제목을 짧게 다듬어 주세요.`);
       lines(ctx, heading, X, y, 32, 1.3); y += 54;
     }
     ctx.font = `400 ${chosen}px ${BODY_SANS}`; ctx.fillStyle = ink;
-    let w = block.heading || y > 470 ? 520 : width;
-    let ls = wrap(ctx, block.body, w);
-    if (!block.heading && y + ls.length * chosen * 1.5 > 570) { w = 520; ls = wrap(ctx, block.body, w); }
+    const ls = paragraph(block.body,block.heading,y,chosen,layout);
     y = lines(ctx, ls, X, y, chosen, 1.5) + 28;
   }
   const art = illustrations[chooseCardTemplate(card, look.page)];
-  if (art) ctx.drawImage(art, 603, 550, 425, 425);
+  if (art) ctx.drawImage(art,layout.x,layout.y,layout.size,layout.size);
 }
 
 function footer(ctx: Ctx, look: CardLook) {
@@ -472,6 +478,7 @@ export function fileBase(d: Draft) {
 
 /** 초안의 카드들을 PNG 파일로 (only를 주면 그 한 장만) */
 export async function draftImages(d: Draft, brand: BrandVoice, only?: number): Promise<File[]> {
+  if (productionOf(brand).mode === "generated") return generatedImageFiles(d,brand,fileBase(d),only);
   const design = designOf(brand);
   const files: File[] = [];
   for (const [i, c] of d.deck.cards.entries()) {

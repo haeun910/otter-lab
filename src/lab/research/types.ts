@@ -16,8 +16,9 @@ export interface ResearchSource {
   region?: NewsItem["region"];
 }
 export interface Evidence { sourceId: string; quote: string }
-export interface ResearchFact { id: string; text: string; kind: "fact" | "background"; evidence: Evidence[] }
+export interface ResearchFact { id: string; text: string; detail?: string; kind: "fact" | "background"; evidence: Evidence[] }
 export interface ResearchReport { summary: string; facts: ResearchFact[]; gaps: string[] }
+export interface AnalysisCheckpoint { key: string; parts: {summary:string;facts:ResearchFact[];gaps:string[]}[] }
 export interface PlannedCard {
   kind: Card["kind"];
   title: string;
@@ -42,6 +43,7 @@ export interface TopicProject {
   sources: ResearchSource[];
   failures: { url: string; error: string }[];
   report?: ResearchReport;
+  analysis?: AnalysisCheckpoint;
   outline: PlannedCard[];
   error?: string;
   draftId?: string;

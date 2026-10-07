@@ -8,7 +8,7 @@ import type { DraftRequest } from "./prompt";
 // 로그인한 배포에서는 서버 API에 로그인 토큰을 같이 보내요 (cloud/sync.ts가 채워 줘요)
 let tokenProvider: (() => Promise<string | null>) | null = null;
 export const setTokenProvider = (fn: typeof tokenProvider) => (tokenProvider = fn);
-async function authHeaders(): Promise<Record<string, string>> {
+export async function authHeaders(): Promise<Record<string, string>> {
   const t = tokenProvider ? await tokenProvider() : null;
   return t ? { authorization: `Bearer ${t}` } : {};
 }
@@ -71,7 +71,7 @@ export async function fetchNews(): Promise<{ items: NewsItem[]; failed: string[]
   }
 }
 
-export async function fetchStatus(): Promise<{ groq: boolean; model: string | null } | null> {
+export async function fetchStatus(): Promise<{ groq: boolean; model: string | null; images?: {ready:boolean;model:string|null;quality:string;size:string} } | null> {
   try {
     const res = await fetch("/api/status", { cache: "no-store" });
     if (!res.ok || !res.headers.get("content-type")?.includes("json")) return null;

@@ -26,7 +26,7 @@ export function extractPage(html: string, url: string) {
   const title = plainText(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "") || new URL(url).hostname;
   const cleaned = html.replace(/<(script|style|nav|footer|header|aside|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi," ");
   const main = cleaned.match(/<(?:article|main)\b[^>]*>([\s\S]*?)<\/(?:article|main)>/i)?.[1] ?? cleaned.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? cleaned;
-  return {title:title.slice(0,200),text:plainText(main).slice(0,6000)};
+  return {title:title.slice(0,200),text:plainText(main).slice(0,18000)};
 }
 export async function readPublicPage(value: string, redirects=0, deadline=Date.now()+10_000): Promise<{url:string;html:string}> {
   const u = publicUrl(value);
@@ -67,7 +67,7 @@ export async function readPublicPage(value: string, redirects=0, deadline=Date.n
   }
   return {url:u.href,html:result.html};
 }
-const OFFICIAL = ["openai.com","anthropic.com","ai.google","blog.google","research.google","developers.google.com","microsoft.com","learn.microsoft.com","github.com","huggingface.co","arxiv.org","hancom.com","hancom.ai"];
+const OFFICIAL = ["openai.com","anthropic.com","ai.google","blog.google","research.google","developers.google.com","microsoft.com","learn.microsoft.com","github.com","huggingface.co","arxiv.org","hancom.com","hancom.ai","cloudflare.com"];
 export function referenceLinks(html: string, base: string): string[] {
   const links:string[]=[];
   for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {

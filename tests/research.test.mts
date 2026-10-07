@@ -30,7 +30,14 @@ assert.equal(researchNews(research,"AI")[0].region,"미확인","Do not invent th
 const req={type:"심층" as const,items:researchNews(research,"AI"),brand:DEFAULT_BRAND,prompts:{},research};
 assert.ok(cardsMessages(req)[1].content.includes("소장이 승인한 7장 구성안"));
 let calls=0;
-const llm=async()=>{calls++;return {cards:outline.map(c=>({...c,body:"확인한 정보를 설명합니다."})),caption:"주제를 쉽게 정리했어요.",hashtags:["#에이전트"]};};
+const explanations=[
+  "관리자는 작업별로 접근 권한을 설정합니다. 실행에 필요한 도구만 허용하면 에이전트가 사용할 수 있는 범위가 정해집니다. 이 자료는 권한을 명시적으로 설정하는 예시를 설명하며 실제 서비스의 성능 수치를 비교하지 않습니다.",
+  "도구를 호출하면 실행 결과가 반환됩니다. 에이전트는 이 결과를 확인한 다음 다음 동작을 진행합니다. 결과 확인 단계가 작업 사이에 들어가며, 최초 요청에서 마지막 실행까지 한 번에 처리하는 흐름으로 설명하지 않습니다.",
+  "이 문서는 실제 제품 발표가 아니라 통제된 검증 예시입니다. 자료에 없는 서비스를 추가하거나 상용 제품의 성능으로 해석할 수 없습니다. 인용문에 기록된 작동 방식과 예시의 범위를 구분해 읽어야 합니다.",
+  "요청마다 관리자가 정한 접근 범위가 적용됩니다. 도구 사용은 명시적으로 허용된 작업을 대상으로 합니다. 권한 설정에 대한 문서의 설명을 바탕으로, 에이전트의 요청과 실제로 허용된 행동이 같은 단계인지 구분할 수 있습니다.",
+  "자료에는 미래에 대한 예측이나 성능 전망이 포함되어 있지 않습니다. 따라서 처리 속도나 비용 개선 정도를 이 예시로 계산할 수 없습니다. 확인한 사실을 설명하는 부분과 추가 자료가 있어야 알 수 있는 부분을 나눕니다.",
+];
+const llm=async()=>{calls++;return {cards:outline.map((c,i)=>({...c,body:i>0&&i<6?explanations[i-1]:"확인한 정보를 설명합니다."})),caption:"주제를 쉽게 정리했어요.",hashtags:["#에이전트"]};};
 const deck=await writeDeck(llm,req);
 assert.equal(deck.cards.length,7);assert.equal(deck.cards[0].template,"main");
 assert.ok(deck.caption.includes(sources[0].url)&&deck.caption.includes(sources[1].url)&&!deck.caption.includes(sources[2].url));
@@ -44,6 +51,7 @@ for(const url of ["http://localhost/","http://127.1/","http://2130706433/","file
 const page=extractPage("<title>本文</title><body><nav>雑音</nav><article>"+text+"</article><script>evil</script></body>","https://example.com");
 assert.equal(page.text,text);assert.ok(!page.text.includes("evil"));
 assert.deepEqual(referenceLinks('<a href="https://openai.com/research/example">資料</a><a href="http://127.0.0.1/">x</a><a href="https://openai.com.attacker.example/x">x</a>',seed.link),["https://openai.com/research/example"]);
+assert.deepEqual(referenceLinks('<a href="https://developers.cloudflare.com/web-search/about/">공식 문서</a><a href="https://cloudflare.com.attacker.example/x">x</a>',seed.link),["https://developers.cloudflare.com/web-search/about/"]);
 const visited:string[]=[];
 const collected=await collectResearch([seed],["http://127.0.0.1/","https://docs.example/agent"],async(url)=>{visited.push(url);return {url,html:"<title>資料</title><article>"+text+'</article><a href="https://openai.com/research/example">公式</a>'};});
 assert.equal(collected.sources.length,3);

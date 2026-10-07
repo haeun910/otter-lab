@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAIN_COVER_TEMPLATE, CARD_TEMPLATES, chooseCardTemplate, isCardTemplate } from "../../data/cardTemplates";
 import { BUILDINGS } from "../../data/buildings";
-import type { Draft, DraftType, NewsItem } from "../../data/demo";
+import type { Card, Draft, DraftType, NewsItem } from "../../data/demo";
 import { quotas, writeJob, retryDraftPart } from "../../company";
 import { CATEGORIES, CATEGORY_INFO } from "../../news/category";
 import { aiFailText, fetchNews, fetchStatus, remoteLLM } from "../../gen/client";
@@ -11,6 +11,8 @@ import { LENGTHS, blogTarget, designOf, writingOf, type CardDesign, type DraftRe
 import { captionWithSources, finalizeDeck, selectHashtags } from "../../gen/editorial";
 import { DEFAULT_PROMPTS } from "../../gen/prompt";
 import { ACCENTS, FONTS, THEMES, draftImages, saveFiles } from "../../render/cardImage";
+import { CARD_PRODUCTION, DEFAULT_PRODUCTION, productionOf } from "../../gen/production";
+import { generateCardImages } from "../../render/generatedCards";
 import { draftLabel, pickCurrent, useLab, type SavedData } from "../../store";
 import TopicWorkshop from "./TopicWorkshop";
 import CardPreview from "../CardPreview";
@@ -148,6 +150,7 @@ function GenerationStatus({ draft, part }: { draft: Draft; part: "cards" | "blog
     <strong>{part === "cards" ? "모모 · 카드뉴스" : "테오 · 블로그"} — {state.status === "running" && !busy ? "작업 중단 · 재시도 필요" : labels[state.status]}</strong>
     <p>요청: {g.request.items.map((n) => n.title).join(" / ")} · 카드 {expected}장 · {g.request.type === "심층" ? g.request.brand.deepTone : g.request.brand.tone}</p>
     {state.error && <p role="alert">{state.error}</p>}
+    {state.review && <div className="generation-review"><strong>{state.review.status==="passed"?"생성 당시 내용 검수 통과 · 최종 내용은 직접 확인해 주세요":"내용 검수 · 수정 필요"}</strong>{state.review.repaired.length>0 && <p>{state.review.repaired.join(", ")}장을 보완하고 다시 확인했어요.</p>}{state.review.issues.length>0 && <ul>{state.review.issues.map((i,k)=><li key={k}>{i.card}장 · {i.message}</li>)}</ul>}</div>}
     {state.status === "failed" && <p>{state.engine === "groq" ? "이전 AI 결과를 보존했습니다." : part === "cards" ? "아래는 AI 결과가 아닌 편집용 뼈대입니다." : "다른 작업에서 완성한 카드는 그대로 보존했습니다."}</p>}
     {state.status === "partial" && <p>작성된 부분은 보존되어 있어요. 전체 블로그 재시도는 현재 원고를 교체합니다.</p>}
     {(state.status === "failed" || state.status === "skipped" || state.status === "partial" || state.status === "running" && !busy) && draft.status !== "게시함" && <button className="btn btn--light" disabled={!!busy} onClick={async () => { setError(""); try { await retryDraftPart(draft, part); } catch (e) { setError(e instanceof Error ? e.message : "재시도 실패"); } }}>{part === "cards" ? "카드만 다시 생성" : state.status === "skipped" ? "블로그 추가 생성" : "블로그만 다시 생성"}</button>}
@@ -230,7 +233,7 @@ export function InboxPanel() {
 // ---------- 카드 편집 ----------
 /** 초안을 다시 쓸 때 AI에게 줄 재료 (바탕 소식·브랜드·지시문) */
 function requestFor(d: Draft): DraftRequest {
-  if (d.generation?.request) return d.generation.request;
+  if (d.generation?.request) return {...d.generation.request,...(productionOf(useLab.getState().brand).mode==="generated"?{cardFormatVersion:1 as const}:{})};
   const st = useLab.getState();
   const byLink = new Map(st.library.map((n) => [n.link, n]));
   return {
@@ -238,6 +241,7 @@ function requestFor(d: Draft): DraftRequest {
     items: d.sources.map((l) => byLink.get(l)).filter((n): n is NewsItem => Boolean(n)),
     brand: st.brand,
     prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt },
+    cardFormatVersion: 1,
   };
 }
 
@@ -298,6 +302,7 @@ export function CardEditorPanel() {
   const addCard = useLab((s) => s.addCard);
   const removeCard = useLab((s) => s.removeCard);
   const moveCard = useLab((s) => s.moveCard);
+  const busy = useLab((s) => s.busy);
   const [sel, setSel] = useState(0);
   useEffect(() => setSel(0), [draft?.id]);
   if (!draft) return <NoDraft />;
@@ -315,7 +320,7 @@ export function CardEditorPanel() {
         <button className="btn btn--light" onClick={() => useLab.getState().openFocus(BUILDINGS.find((b) => b.id === "cards")!.objects.find((o) => o.panel === "printer")!)}>PNG 저장 · 인쇄기</button>
       </div>
       <GenerationStatus draft={draft} part="cards" />
-      <fieldset className="generation-edit" disabled={draft.generation?.cards.status === "running" && useLab.getState().busy === "draft"}>
+      <fieldset className="generation-edit" disabled={!!busy}>
       <div className="strip" role="list">
         {cards.map((c, k) => (
           <button
@@ -373,6 +378,7 @@ export function CardEditorPanel() {
             <label className="field"><span>설명 {index + 1} · 소제목</span><input value={section.heading} onChange={(e) => editCard(id, i, { sections: card.sections!.map((s, j) => j === index ? { ...s, heading: e.target.value } : s) })} /></label>
             <label className="field"><span>설명 {index + 1} · 내용</span><textarea rows={3} value={section.body} onChange={(e) => editCard(id, i, { sections: card.sections!.map((s, j) => j === index ? { ...s, body: e.target.value } : s) })} /></label>
           </div>)}
+          {productionOf(brand).mode==="generated" && card.kind!=="cover" && <VisualCopyFields card={card} onChange={patch=>editCard(id,i,patch)}/>}
           <label className="field">
             <span>캡션 · 요약 + 고정 인사 + 원문 출처</span>
             <textarea id={`cap-${id}`} rows={8} onBlur={() => editDeck(id, { caption: captionWithSources(draft.deck.caption, requestFor(draft).items) })} value={draft.deck.caption} onChange={(e) => editDeck(id, { caption: e.target.value })} />
@@ -401,6 +407,22 @@ export function CardEditorPanel() {
   );
 }
 
+function VisualCopyFields({card,onChange}:{card:Card;onChange:(patch:Partial<Card>)=>void}) {
+  const diagram=card.diagram??{kind:"checklist" as const,items:[{label:"",detail:""},{label:"",detail:""}]};
+  const glossary=card.glossary??{term:"",meaning:""};
+  return <section aria-label="도식과 용어 풀이">
+    <h3 className="pn__h">설명글 + 도식 + 용어 한 줄</h3>
+    <label className="field"><span>도식 형태</span><select value={diagram.kind} onChange={e=>onChange({diagram:{...diagram,kind:e.target.value as typeof diagram.kind}})}><option value="flow">순서·흐름</option><option value="comparison">대안 비교</option><option value="checklist">핵심 사항</option></select></label>
+    {diagram.items.map((item,k)=><div key={k} className="form2">
+      <label className="field"><span>도식 {k+1} · 항목명</span><input maxLength={28} value={item.label} onChange={e=>onChange({diagram:{...diagram,items:diagram.items.map((v,j)=>j===k?{...v,label:e.target.value}:v)}})}/></label>
+      <label className="field"><span>도식 {k+1} · 한 줄 설명</span><input maxLength={70} value={item.detail??""} onChange={e=>onChange({diagram:{...diagram,items:diagram.items.map((v,j)=>j===k?{...v,detail:e.target.value}:v)}})}/></label>
+    </div>)}
+    <div className="row"><button className="btn btn--light" disabled={diagram.items.length>=4} onClick={()=>onChange({diagram:{...diagram,items:[...diagram.items,{label:"",detail:""}]}})}>도식 항목 추가</button><button className="btn btn--light" disabled={diagram.items.length<=2} onClick={()=>onChange({diagram:{...diagram,items:diagram.items.slice(0,-1)}})}>마지막 항목 빼기</button></div>
+    {card.kind==="body" && <div className="form2"><label className="field"><span>풀어 쓸 용어</span><input maxLength={28} value={glossary.term} onChange={e=>onChange({glossary:{...glossary,term:e.target.value}})}/></label><label className="field"><span>쉬운 뜻 · 한 문장</span><textarea rows={2} maxLength={100} value={glossary.meaning} onChange={e=>onChange({glossary:{...glossary,meaning:e.target.value}})}/></label></div>}
+    <p className="muted">문구·도식을 수정한 장은 인쇄기에서 다시 생성해 주세요.</p>
+  </section>;
+}
+
 // ---------- 인쇄기 ----------
 async function printDraft(d: Draft, only?: number): Promise<File[]> {
   const st = useLab.getState();
@@ -409,7 +431,7 @@ async function printDraft(d: Draft, only?: number): Promise<File[]> {
   try {
     const files = await draftImages(d, st.brand, only);
     const how = await saveFiles(files);
-    const size = designOf(st.brand).size === "square" ? "1080×1080" : "1080×1350";
+    const size = productionOf(st.brand).mode==="generated" ? "정사각형 원본" : "1080×1080";
     if (how !== "cancelled") st.say(how === "shared" ? `카드 ${files.length}장을 보냈어요.` : `카드 ${files.length}장을 ${size} 이미지로 뽑았어요.`);
     return files;
   } catch (e) {
@@ -432,18 +454,35 @@ export function PrinterPanel() {
   const brand = useLab((s) => s.brand);
   const busy = useLab((s) => s.busy);
   const [prints, showPrints] = usePrints();
+  const [progress,setProgress]=useState("");
+  const server=useServerStatus();
+  const generated=productionOf(brand).mode==="generated";
   if (!draft) return <NoDraft />;
   const look = { total: draft.deck.cards.length, handle: brand.handle, series: brand.series, deep: draft.type === "심층" };
+  const makeImages=async(only?:number,force=false)=>{
+    const st=useLab.getState();if(st.busy) return;
+    st.setBusy("print");
+    try {
+      await generateCardImages(draft,brand,{only,force,onProgress:(page,total)=>setProgress(`${page}/${total}장 · 설명과 도식이 들어간 이미지를 생성하고 있어요`),onImage:(index,image)=>useLab.getState().editCard(draft.id,index,{image})});
+      st.say("카드 이미지를 준비했어요. 한글과 도식을 확인한 뒤 저장해 주세요.");
+    } catch(e) {st.say(e instanceof Error?e.message:"이미지 생성에 실패했어요. 완성한 장은 보존했습니다.");}
+    finally {useLab.getState().setBusy(null);setProgress("");}
+  };
   return (
     <div className="pn">
       <div className="pn__bar">
         <DraftPicker pool={pool} draft={draft} />
         <span className="muted">카드를 누르면 그 한 장만 저장해요</span>
       </div>
+      {generated && <section className="settings"><h3 className="pn__h">설명글과 도식으로 카드 전체 생성</h3><p>한 장씩 생성해 바로 보관합니다. 다시 시도하면 완성한 장은 건너뛰고, 수정한 장만 새로 만듭니다. 이미지 생성에는 API 이용 요금이 발생합니다.</p>
+        {server!=="loading" && !server?.images?.ready && <p role="status">이미지 생성 연결이 필요해요. 배포 서버의 환경변수에 OPENAI_API_KEY를 등록해 주세요.</p>}
+        <button className="btn btn--primary" disabled={!!busy||!server||server==="loading"||!server.images?.ready} onClick={()=>makeImages()}>필요한 카드 이미지 생성</button>
+        {progress && <p role="status">{progress}</p>}
+      </section>}
       <div className="print__grid">
         {draft.deck.cards.map((c, i) => (
+          <div key={i}>
           <button
-            key={i}
             className="print__item"
             disabled={!!busy}
             onClick={() => printDraft(draft, i).then(showPrints)}
@@ -451,6 +490,8 @@ export function PrinterPanel() {
           >
             <CardPreview card={c} page={i + 1} {...look} />
           </button>
+          {generated && <button className="btn btn--light" disabled={!!busy||!server||server==="loading"||!server.images?.ready} onClick={()=>makeImages(i,!!c.image)}>{i+1}장 {c.image?"다시 생성":"이미지 생성"}</button>}
+          </div>
         ))}
       </div>
       {prints.length > 0 && (
@@ -466,7 +507,7 @@ export function PrinterPanel() {
       )}
       <footer className="pn__foot">
         <span className="muted">
-          {designOf(brand).size === "square" ? "1080×1080" : "1080×1350"} PNG로 뽑아요. 디자인은 소장실 책상에서 바꿔요. 휴대폰에서는 공유 창이 열려 사진에
+          {generated ? "생성한 정사각형 원본" : "1080×1080"} PNG로 저장해요. 디자인은 소장실 책상에서 바꿔요. 휴대폰에서는 공유 창이 열려 사진에
           저장할 수 있어요.
         </span>
         <button className="btn btn--primary" disabled={!!busy} onClick={() => printDraft(draft).then(showPrints)}>
@@ -980,13 +1021,30 @@ function Backup() {
 // ---------- 카드 디자인·글 분량 설정 ----------
 const SAMPLE_COVER = { kind: "cover" as const, title: "오늘의 AI 소식 5가지", body: "수달이 골라 온 아침 소식" };
 
+function CardProductionSettings() {
+  const brand=useLab(s=>s.brand),setBrand=useLab(s=>s.setBrand),busy=useLab(s=>s.busy);
+  const production=productionOf(brand),server=useServerStatus();
+  return <section className="settings"><h3 className="pn__h">카드뉴스 기본 제작 방식</h3><fieldset disabled={!!busy}>
+    <label className="field"><span>이미지 제작 방식</span><select value={production.mode} onChange={e=>setBrand({...brand,production:{...production,mode:e.target.value as typeof production.mode}})}><option value="generated">승인한 숲속 뉴스룸 · 카드 전체 이미지 생성</option><option value="template">기존 템플릿 · 배경에 문구 인쇄</option></select></label>
+    <p>한 주제 · 기본 7장 · 정사각형. 설명글 + 도식 + 쉬운 용어 풀이, 첫 페이지 메인 수달, 하단 페이지 번호·발바닥·@otterlab.ai.</p>
+    {production.mode==="generated" && <>
+      <img className="production-reference" src={CARD_PRODUCTION.references[1]} alt="승인한 설명글과 도식의 균형 · 카드 디자인 기준"/>
+      <label className="field"><span>이미지 디자이너 프롬프트 · 추가 규칙</span><textarea rows={9} maxLength={4000} value={production.imagePrompt} onChange={e=>setBrand({...brand,production:{...production,imagePrompt:e.target.value}})}/></label>
+      <button className="btn btn--light" onClick={()=>setBrand({...brand,production:{...DEFAULT_PRODUCTION}})}>승인한 제작 규칙으로 복원</button>
+      <p className="muted">{server==="loading"?"이미지 연결 확인 중…":server?.images?.ready?"이미지 생성 연결됨":"이미지 생성 연결 필요 · 서버 환경변수 OPENAI_API_KEY"}. 생성한 원본은 이 브라우저에 보관됩니다. 문구·순서·디자인 규칙이 바뀐 장은 다시 생성합니다.</p>
+    </>}
+  </fieldset></section>;
+}
+
 function CardDesignSettings() {
   const brand = useLab((s) => s.brand);
   const setBrand = useLab((s) => s.setBrand);
   const design = designOf(brand);
   const set = (patch: Partial<CardDesign>) => setBrand({ ...brand, design: { ...design, ...patch } });
+  if (productionOf(brand).mode==="generated") return <CardProductionSettings/>;
   return (
     <section className="settings">
+      <CardProductionSettings/>
       <h3 className="pn__h">카드뉴스 디자인</h3>
       <div className="themes" role="radiogroup" aria-label="카드 테마">
         {THEMES.map((t) => (

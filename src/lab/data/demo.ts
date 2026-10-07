@@ -6,11 +6,14 @@ import { classify, normCategory, type Category } from "../news/category";
 import snapshot from "./news-snapshot.json";
 import type { CardTemplate } from "./cardTemplates";
 import type { DraftRequest } from "../gen/prompt";
+import type { QualityReview } from "../gen/quality";
+import type { GeneratedCardImage } from "../render/imageTypes";
 
 export interface GenerationPart {
   status: "pending" | "running" | "complete" | "partial" | "failed" | "skipped";
   engine?: "groq" | "template";
   error?: string;
+  review?: QualityReview;
 }
 
 export interface NewsItem {
@@ -39,6 +42,9 @@ export interface Card {
   sections?: { heading: string; body: string }[];
   template?: CardTemplate;
   factIds?: string[];
+  diagram?: { kind: "flow" | "comparison" | "checklist"; items: { label: string; detail?: string }[] };
+  glossary?: { term: string; meaning: string };
+  image?: GeneratedCardImage;
 }
 
 export type DraftType = "묶음" | "심층";
@@ -47,6 +53,7 @@ export interface Deck {
   cards: Card[];
   caption: string;
   hashtags: string[];
+  quality?: QualityReview;
 }
 
 export interface Blog {

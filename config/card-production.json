@@ -1,0 +1,14 @@
+{
+  "version": "forest-newsroom-v1",
+  "mode": "generated",
+  "cards": 7,
+  "aspectRatio": "1:1",
+  "bodyCharacters": { "min": 90, "target": "100~220", "max": 260 },
+  "diagramItems": { "min": 2, "max": 4 },
+  "footerHandle": "@otterlab.ai",
+  "references": ["/card-style/approved-cover.png", "/card-style/approved-explainer.png"],
+  "imageModel": "gpt-image-1",
+  "imageQuality": "high",
+  "imageSize": "1024x1024",
+  "imagePrompt": "승인된 두 레퍼런스와 같은 숲속 연구소 뉴스룸 분위기로 카드 전체를 생성합니다. 따뜻한 아이보리 종이, 진한 숲 초록색의 큰 제목, 읽기 쉬운 굵은 한국어 설명, 세이지·코랄·머스터드 포인트를 사용합니다. 제목 → 설명글 → 핵심 도식 → 용어 한 줄 순서로 읽히게 합니다. 본문은 불투명한 밝은 패널에 놓고 잎·책·연구소 배경은 가장자리로 제한합니다. 수달은 갈색 털, 크림색 주둥이, 청록 조끼의 동일한 캐릭터이며 첫 장은 책상에서 메모하는 메인 수달입니다. 설명 장은 2~4문장과 2~4개 도식 항목을 함께 담고 일러스트는 정보 영역을 침범하지 않습니다. 글자 없는 배경이나 줄글만 붙인 포스터가 아니라 도식과 설명이 함께 완성된 편집 디자인입니다. 제공된 문구의 한글·숫자·영문을 정확히 그립니다. 임의의 로고·수치·인용·출처·면책 문구·광고 문구는 추가하지 않습니다. 하단에는 두 자리 페이지 번호, 발바닥, @otterlab.ai만 표시합니다. 모바일에서도 읽을 수 있도록 대비와 여백을 확보합니다."
+}

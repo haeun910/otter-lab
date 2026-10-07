@@ -82,7 +82,7 @@ export async function writeJob(type: DraftType, items: NewsItem[], meetingId?: s
   const st = useLab.getState();
   if (st.busy || !items.length) return;
   const target = options.target ?? "both";
-  const request = structuredClone(options.request ?? { type, items, brand: st.brand, prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt } });
+  const request = structuredClone(options.request ?? { type, items, brand: st.brand, prompts: { cards: st.staff.cards?.prompt, blog: st.staff.blog?.prompt }, cardFormatVersion: 1 as const });
   const previous = options.draftId ? st.drafts.find((d) => d.id === options.draftId) : undefined;
   if (options.draftId && (!previous || previous.status === "게시함")) return;
   const now = Date.now();
